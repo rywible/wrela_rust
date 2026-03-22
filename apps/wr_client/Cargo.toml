@@ -1,0 +1,21 @@
+[package]
+name = "wr_client"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+stub = []
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+wr_core.workspace = true
+wr_game.workspace = true

@@ -1,0 +1,43 @@
+[package]
+name = "wr_game"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+stub = []
+
+[dependencies]
+wr_core.workspace = true
+wr_math.workspace = true
+wr_world_seed.workspace = true
+wr_ecs.workspace = true
+wr_platform.workspace = true
+wr_render_api.workspace = true
+wr_render_wgpu.workspace = true
+wr_render_atmo.workspace = true
+wr_render_scene.workspace = true
+wr_render_post.workspace = true
+wr_world_gen.workspace = true
+wr_procgeo.workspace = true
+wr_physics.workspace = true
+wr_combat.workspace = true
+wr_ai.workspace = true
+wr_actor_player.workspace = true
+wr_actor_wraith.workspace = true
+wr_vfx.workspace = true
+wr_tools_ui.workspace = true
+wr_tools_harness.workspace = true
+wr_telemetry.workspace = true
+
+[dev-dependencies]
+wr_client.workspace = true
+wr_headless.workspace = true
+wr_agentd.workspace = true
+xtask.workspace = true
