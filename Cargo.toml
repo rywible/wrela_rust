@@ -1,0 +1,74 @@
+[workspace]
+resolver = "2"
+members = [
+    "xtask",
+    "apps/wr_client",
+    "apps/wr_headless",
+    "apps/wr_agentd",
+    "crates/wr_core",
+    "crates/wr_math",
+    "crates/wr_world_seed",
+    "crates/wr_ecs",
+    "crates/wr_platform",
+    "crates/wr_render_api",
+    "crates/wr_render_wgpu",
+    "crates/wr_render_atmo",
+    "crates/wr_render_scene",
+    "crates/wr_render_post",
+    "crates/wr_world_gen",
+    "crates/wr_procgeo",
+    "crates/wr_physics",
+    "crates/wr_combat",
+    "crates/wr_ai",
+    "crates/wr_actor_player",
+    "crates/wr_actor_wraith",
+    "crates/wr_vfx",
+    "crates/wr_tools_ui",
+    "crates/wr_tools_harness",
+    "crates/wr_telemetry",
+    "crates/wr_game"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92.0"
+license = "MIT"
+repository = "https://github.com/rywible/wrela_rust"
+publish = false
+
+[workspace.dependencies]
+    xtask = { path = "xtask" }
+    wr_client = { path = "apps/wr_client" }
+    wr_headless = { path = "apps/wr_headless" }
+    wr_agentd = { path = "apps/wr_agentd" }
+    wr_core = { path = "crates/wr_core" }
+    wr_math = { path = "crates/wr_math" }
+    wr_world_seed = { path = "crates/wr_world_seed" }
+    wr_ecs = { path = "crates/wr_ecs" }
+    wr_platform = { path = "crates/wr_platform" }
+    wr_render_api = { path = "crates/wr_render_api" }
+    wr_render_wgpu = { path = "crates/wr_render_wgpu" }
+    wr_render_atmo = { path = "crates/wr_render_atmo" }
+    wr_render_scene = { path = "crates/wr_render_scene" }
+    wr_render_post = { path = "crates/wr_render_post" }
+    wr_world_gen = { path = "crates/wr_world_gen" }
+    wr_procgeo = { path = "crates/wr_procgeo" }
+    wr_physics = { path = "crates/wr_physics" }
+    wr_combat = { path = "crates/wr_combat" }
+    wr_ai = { path = "crates/wr_ai" }
+    wr_actor_player = { path = "crates/wr_actor_player" }
+    wr_actor_wraith = { path = "crates/wr_actor_wraith" }
+    wr_vfx = { path = "crates/wr_vfx" }
+    wr_tools_ui = { path = "crates/wr_tools_ui" }
+    wr_tools_harness = { path = "crates/wr_tools_harness" }
+    wr_telemetry = { path = "crates/wr_telemetry" }
+    wr_game = { path = "crates/wr_game" }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unwrap_used = "deny"

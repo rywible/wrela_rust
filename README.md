@@ -2,13 +2,13 @@
 
 Wrela v0 is an autonomous-first Rust game runtime project for a narrow procedural vertical slice: a seed-driven redwood forest, fixed late-afternoon lighting, a floating telekinetic katana player embodiment, one wraith archetype, and a deterministic harness-first workflow.
 
-## Bootstrap Status
+## Status
 
-This repository is in bootstrap phase right now.
+The repository now has its initial workspace scaffold.
 
-- The process, roadmap, issue forms, PR packet, and task tracking system exist.
-- The Rust workspace, crates, apps, `xtask`, scenarios, and harness command surface are planned but not all landed yet.
-- The default next implementation task is [`PR-000`](roadmap/pending_tasks/PR-000-workspace-scaffold-conventions-and-empty-crate-topology.md).
+- The full crate and app topology exists as compilable placeholders.
+- CI smoke checks, lint config, Cargo aliases, and ADR-000 are in place.
+- The default next implementation task after this scaffold is `PR-001`.
 
 ## Current Source Of Truth
 
@@ -26,8 +26,6 @@ Use these files first:
 
 ## Working In This Repo Today
 
-If you are operating autonomously right now:
-
 1. Start from a named task.
 2. Prefer the earliest unblocked dependency task.
 3. Put implementation work on its own task branch.
@@ -36,27 +34,23 @@ If you are operating autonomously right now:
 6. If review feedback arrives, fix it, push again, and wait for the next review cycle.
 7. Merge only after the latest push gets an explicit green light such as `thumbs up`, unless a human waives that requirement.
 8. Move a completed roadmap task file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in the same PR that lands the work.
-9. Do not claim Cargo or harness verification that does not exist yet.
 
-## Bootstrap Verification
+## Current Verification
 
-Run the process validator before and after process or roadmap changes:
+The workspace now supports these baseline checks:
 
 ```bash
 python3 docs/process/validate_process_contract.py
+cargo fmt --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo check --workspace
 ```
 
-That validator checks the bootstrap operating contract, including:
-
-- required process files,
-- the GitHub issue form directory path,
-- backlog JSON readability,
-- one-to-one roadmap task coverage across pending and completed task folders,
-- duplicate or stray task IDs.
+`cargo xtask` exists as a scaffold entrypoint only. The full repo command surface lands in later roadmap tasks.
 
 ## Target End-State Automation Surface
 
-These commands are the required product surface after the scaffold and harness tasks land. They are not all available yet.
+These commands are still the required product surface for later tasks:
 
 ```bash
 cargo xtask verify
@@ -68,5 +62,3 @@ cargo xtask perf --scenario scenarios/traversal/perf_path.ron
 cargo xtask replay baselines/replays/wraith_duel_seed01.json
 cargo xtask daemon
 ```
-
-Until those exist, missing commands are backlog work to implement, not permission to create private replacement contracts.
