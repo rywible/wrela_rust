@@ -1,0 +1,51 @@
+{
+  "schema_version": "wr_harness/v1",
+  "metadata": {
+    "command_name": "noop-harness-report",
+    "run_id": "golden-fixture",
+    "git_sha": "0123456789abcdef0123456789abcdef01234567",
+    "cwd": "<workspace_root>",
+    "platform": {
+      "os": "macos",
+      "family": "unix",
+      "arch": "aarch64"
+    },
+    "timestamps": {
+      "started_at_unix_ms": 1710000000000,
+      "completed_at_unix_ms": 1710000000123
+    },
+    "notes": [
+      "Golden bundle fixture for PR-001."
+    ]
+  },
+  "seed": {
+    "label": "hero_forest",
+    "value_hex": "0xDEADBEEF",
+    "stream": "bootstrap"
+  },
+  "result": {
+    "status": "passed",
+    "summary": "No-op harness bundle emitted successfully.",
+    "details": "Bootstrap contract bundle only; scenario execution and capture work land in later roadmap tasks."
+  },
+  "suites": [
+    {
+      "name": "noop_harness_contract",
+      "passed": 1,
+      "failed": 0,
+      "ignored": 0,
+      "duration_ms": 0
+    }
+  ],
+  "artifacts": [
+    {
+      "role": "terminal_report",
+      "path": "reports/harness/noop-harness-report/golden-fixture/terminal_report.json",
+      "media_type": "application/json"
+    }
+  ],
+  "notes": [
+    "Artifact paths are stable under reports/harness/<command>/<run_id>/.",
+    "This bundle is the bootstrap reference for the agent-facing harness contract."
+  ]
+}
