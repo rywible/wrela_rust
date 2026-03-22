@@ -1,6 +1,6 @@
 # PR-001 - Agent harness contract and artifact schema
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Harness
 - Depends on: PR-000

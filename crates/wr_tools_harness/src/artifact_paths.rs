@@ -40,7 +40,8 @@ pub fn write_test_result_bundle(
         .ok_or_else(|| HarnessError::invalid_path(path.to_string_lossy().into_owned()))?;
 
     fs::create_dir_all(parent)?;
-    let json = serde_json::to_vec_pretty(bundle)?;
+    let mut json = serde_json::to_vec_pretty(bundle)?;
+    json.push(b'\n');
     fs::write(&path, json)?;
     Ok(path)
 }

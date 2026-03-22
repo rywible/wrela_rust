@@ -311,7 +311,7 @@ mod tests {
             command_name: "noop-harness-report".to_owned(),
             run_id: "golden-fixture".to_owned(),
             git_sha: "0123456789abcdef0123456789abcdef01234567".to_owned(),
-            cwd: "/Users/ryanwible/projects/wrela_rust".to_owned(),
+            cwd: "<workspace_root>".to_owned(),
             platform: PlatformMetadata {
                 os: "macos".to_owned(),
                 family: "unix".to_owned(),

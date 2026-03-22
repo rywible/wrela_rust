@@ -4,7 +4,7 @@
     "command_name": "noop-harness-report",
     "run_id": "golden-fixture",
     "git_sha": "0123456789abcdef0123456789abcdef01234567",
-    "cwd": "/Users/ryanwible/projects/wrela_rust",
+    "cwd": "<workspace_root>",
     "platform": {
       "os": "macos",
       "family": "unix",
