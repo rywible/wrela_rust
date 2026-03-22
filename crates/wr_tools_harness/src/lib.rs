@@ -5,6 +5,7 @@ mod contract;
 
 pub use artifact_paths::{
     ArtifactLayout, HARNESS_REPORTS_ROOT, TERMINAL_REPORT_FILENAME, write_test_result_bundle,
+    write_test_result_bundle_at,
 };
 pub use contract::{
     ArtifactDescriptor, CaptureRequest, DuelMetrics, DuelReport, FailureKind, HarnessError,

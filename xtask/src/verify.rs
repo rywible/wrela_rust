@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::Instant;
 
 use tracing::{info, warn};
 use wr_telemetry::{
@@ -10,14 +10,21 @@ use wr_telemetry::{
 };
 use wr_tools_harness::{
     ArtifactDescriptor, ArtifactLayout, FailureKind, HarnessStatus, ResultEnvelope,
-    TestResultBundle, TestSuiteResult, write_test_result_bundle,
+    TestResultBundle, TestSuiteResult, write_test_result_bundle_at,
 };
+
+use crate::util::{current_git_sha, now_unix_ms};
 
 const VERIFY_COMMAND_NAME: &str = "verify";
 const VERIFY_STEP_RECORDS_FILENAME: &str = "verify_steps.json";
 const TRACE_LOG_FILENAME: &str = "trace.jsonl";
 
-pub fn run(args: impl Iterator<Item = String>) -> Result<PathBuf, String> {
+pub struct VerifyOutcome {
+    pub terminal_report_path: PathBuf,
+    pub succeeded: bool,
+}
+
+pub fn run(args: impl Iterator<Item = String>) -> Result<VerifyOutcome, String> {
     let options = VerifyOptions::parse(args)?;
     let run_id = options.run_id.unwrap_or_else(|| format!("verify-{}", now_unix_ms().unwrap_or(0)));
     let layout = ArtifactLayout::new(VERIFY_COMMAND_NAME, &run_id);
@@ -72,7 +79,10 @@ pub fn run(args: impl Iterator<Item = String>) -> Result<PathBuf, String> {
         return state.finalize();
     }
 
-    state.record_suite_result(verify_benchmark(&run_dir))?;
+    if state.record_suite_result(verify_benchmark(&run_dir))? {
+        return state.finalize();
+    }
+
     state.finalize()
 }
 
@@ -195,7 +205,7 @@ impl VerifyRunState {
         }
     }
 
-    fn finalize(mut self) -> Result<PathBuf, String> {
+    fn finalize(mut self) -> Result<VerifyOutcome, String> {
         let run_dir = self.layout.run_directory();
         let step_records_path = write_step_records(&run_dir, &self.steps)?;
         self.artifacts.push(artifact_descriptor(
@@ -223,6 +233,7 @@ impl VerifyRunState {
             "Workspace verification stack failed.".to_owned()
         };
 
+        let succeeded = self.failure_kind.is_none();
         let result = ResultEnvelope {
             status: if self.failure_kind.is_none() {
                 HarnessStatus::Passed
@@ -234,7 +245,10 @@ impl VerifyRunState {
             details: self.failure_details,
         };
 
-        write_verify_bundle(&self.layout, metadata, self.suites, self.artifacts, result)
+        let terminal_report_path =
+            write_verify_bundle(&self.layout, metadata, self.suites, self.artifacts, result)?;
+
+        Ok(VerifyOutcome { terminal_report_path, succeeded })
     }
 }
 
@@ -630,6 +644,17 @@ fn write_verify_bundle(
     artifacts: Vec<ArtifactDescriptor>,
     result: ResultEnvelope,
 ) -> Result<PathBuf, String> {
+    write_verify_bundle_at(Path::new("."), layout, metadata, suites, artifacts, result)
+}
+
+fn write_verify_bundle_at(
+    root: &Path,
+    layout: &ArtifactLayout,
+    metadata: RunMetadata,
+    suites: Vec<TestSuiteResult>,
+    artifacts: Vec<ArtifactDescriptor>,
+    result: ResultEnvelope,
+) -> Result<PathBuf, String> {
     let bundle = TestResultBundle {
         schema_version: "wr_harness/v1".to_owned(),
         metadata,
@@ -649,7 +674,7 @@ fn write_verify_bundle(
         ]),
     };
 
-    write_test_result_bundle(layout, &bundle).map_err(|error| error.to_string())
+    write_test_result_bundle_at(root, layout, &bundle).map_err(|error| error.to_string())
 }
 
 fn artifact_descriptor(role: &str, path: &Path, media_type: &str) -> ArtifactDescriptor {
@@ -664,60 +689,20 @@ fn path_string(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-fn current_git_sha() -> Result<String, String> {
-    let output = Command::new("git")
-        .args(["rev-parse", "HEAD"])
-        .output()
-        .map_err(|error| format!("failed to invoke git: {error}"))?;
-
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).trim().to_owned());
-    }
-
-    let sha = String::from_utf8(output.stdout)
-        .map_err(|error| format!("git returned non-utf8 output: {error}"))?;
-    let trimmed = sha.trim();
-
-    if trimmed.is_empty() {
-        return Err(String::from("git returned an empty sha"));
-    }
-
-    Ok(trimmed.to_owned())
-}
-
-fn now_unix_ms() -> Result<u64, String> {
-    let duration = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_err(|error| format!("system clock is before unix epoch: {error}"))?;
-
-    u64::try_from(duration.as_millis())
-        .map_err(|_| String::from("unix millisecond timestamp overflowed u64"))
-}
-
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::fs;
-    use std::sync::{Mutex, OnceLock};
 
     use tempfile::tempdir;
     use wr_tools_harness::{ArtifactLayout, HarnessStatus};
 
     use super::*;
 
-    fn cwd_lock() -> &'static Mutex<()> {
-        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
-        LOCK.get_or_init(|| Mutex::new(()))
-    }
-
     #[test]
     fn verify_bundle_and_step_records_land_under_reports() {
-        let _guard = cwd_lock().lock().expect("cwd lock should be available");
         let temp = tempdir().expect("temp directory should exist");
-        let original_cwd = env::current_dir().expect("original cwd should be readable");
-        env::set_current_dir(temp.path()).expect("cwd should switch to temp workspace");
-
         let layout = ArtifactLayout::new(VERIFY_COMMAND_NAME, "unit-test");
+        let run_dir = temp.path().join(layout.run_directory());
         let step_records = vec![VerificationStepRecord::new(
             "fmt",
             vec!["cargo".to_owned(), "fmt".to_owned(), "--check".to_owned()],
@@ -725,8 +710,9 @@ mod tests {
             5,
         )];
         let step_records_path =
-            write_step_records(&layout.run_directory(), &step_records).expect("steps should write");
-        let report_path = write_verify_bundle(
+            write_step_records(&run_dir, &step_records).expect("steps should write");
+        let report_path = write_verify_bundle_at(
+            temp.path(),
             &layout,
             RunMetadata::new(
                 VERIFY_COMMAND_NAME,
@@ -763,7 +749,8 @@ mod tests {
         assert!(report_path.is_file());
         assert_eq!(
             step_records_path,
-            Path::new("reports")
+            temp.path()
+                .join("reports")
                 .join("harness")
                 .join("verify")
                 .join("unit-test")
@@ -771,7 +758,8 @@ mod tests {
         );
         assert_eq!(
             report_path,
-            Path::new("reports")
+            temp.path()
+                .join("reports")
                 .join("harness")
                 .join("verify")
                 .join("unit-test")
@@ -780,7 +768,5 @@ mod tests {
 
         let report = fs::read_to_string(report_path).expect("terminal report should be readable");
         assert!(report.contains("\"command_name\": \"verify\""));
-
-        env::set_current_dir(original_cwd).expect("cwd should restore");
     }
 }

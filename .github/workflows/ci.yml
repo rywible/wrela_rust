@@ -16,7 +16,6 @@ jobs:
         with:
           toolchain: 1.92.0
           components: clippy,rustfmt
-      - name: Install cargo-nextest
-        run: cargo install cargo-nextest --locked
+      - uses: taiki-e/install-action@nextest
       - name: Run repo verification stack
         run: cargo xtask verify --run-id ci

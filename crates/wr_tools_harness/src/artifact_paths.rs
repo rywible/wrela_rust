@@ -34,7 +34,15 @@ pub fn write_test_result_bundle(
     layout: &ArtifactLayout,
     bundle: &TestResultBundle,
 ) -> Result<PathBuf, HarnessError> {
-    let path = layout.terminal_report_path();
+    write_test_result_bundle_at(Path::new("."), layout, bundle)
+}
+
+pub fn write_test_result_bundle_at(
+    root: &Path,
+    layout: &ArtifactLayout,
+    bundle: &TestResultBundle,
+) -> Result<PathBuf, HarnessError> {
+    let path = root.join(layout.terminal_report_path());
     let parent = path
         .parent()
         .ok_or_else(|| HarnessError::invalid_path(path.to_string_lossy().into_owned()))?;
