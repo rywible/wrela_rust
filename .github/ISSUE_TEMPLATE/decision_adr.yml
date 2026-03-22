@@ -1,0 +1,139 @@
+name: Decision / ADR / spike
+description: Propose a bounded decision, uncertainty-reduction spike, or scope exception that needs written resolution.
+title: "[ADR] <decision title>"
+labels: ["decision", "adr", "autonomous"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when the repo needs a written decision before implementation should proceed.
+
+        Examples:
+        - changing crate ownership or data flow,
+        - allowing a scope exception,
+        - choosing a new dependency,
+        - deciding between two viable rendering or combat approaches,
+        - running a bounded spike to reduce uncertainty.
+
+        If the work is straightforward implementation, use the roadmap task form instead.
+
+  - type: textarea
+    id: decision_metadata
+    attributes:
+      label: Decision metadata
+      description: Keep keys stable. Use `[]`, `none`, or `unknown` where needed.
+      render: yaml
+      value: |
+        adr_id:
+        decision_kind: architecture|scope-exception|dependency|data-contract|perf-strategy|rendering-technique|combat-model|spike
+        status: proposed
+        task_source: roadmap|human|follow-up
+        related_tasks: []
+        blocked_tasks: []
+        unblocks: []
+        crate_scope: []
+        app_scope: []
+        affects:
+          determinism: unknown
+          performance: unknown
+          replay: unknown
+          tuning: unknown
+          serialization_schema: unknown
+          visuals: unknown
+          combat_feel: unknown
+          baselines: unknown
+          docs_contract: yes
+        requires_human_taste_review: no
+        canonical_seed:
+        canonical_scenarios: []
+        tweak_pack:
+        deadline_context:
+    validations:
+      required: true
+
+  - type: textarea
+    id: decision_problem
+    attributes:
+      label: Problem statement
+      description: What decision needs to be made, and why now?
+      placeholder: |
+        Example:
+        The current foliage pipeline can stay CPU-authored for v0, but canopy cluster generation is approaching the cost ceiling. We need to decide whether to keep CPU generation and optimize data layout or move one phase to a GPU compute path.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and must-preserve rules
+      placeholder: |
+        - Must remain testable headlessly.
+        - Must not widen v0 scope.
+        - Must preserve deterministic seed-driven outputs.
+        - Should avoid a new top-level crate if possible.
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Options considered
+      description: List the serious options, not strawmen.
+      value: |
+        Option A:
+        -
+
+        Option B:
+        -
+
+        Option C:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed_path
+    attributes:
+      label: Proposed path
+      description: What do you currently recommend, and why?
+      placeholder: |
+        Recommend Option A because it keeps generation CPU-testable, avoids new replay risk, and can likely recover enough performance through data-layout and caching changes.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence_needed
+    attributes:
+      label: Evidence needed before resolution
+      description: Name the benchmark, prototype, capture set, or tests required to close the issue.
+      value: |
+        Required evidence:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: exit_criteria
+    attributes:
+      label: Exit criteria
+      description: What makes this issue resolved?
+      value: |
+        - An ADR is merged in `docs/adr/`.
+        - Blocked tasks are updated with the chosen direction.
+        - Required evidence artifacts are attached or linked.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: decision_checks
+    attributes:
+      label: Discipline checks
+      options:
+        - label: This issue exists to resolve a real decision, not to postpone straightforward implementation work.
+          required: true
+        - label: The options are bounded and comparable.
+          required: true
+        - label: The required evidence is named explicitly.
+          required: true
+        - label: The proposed path respects the v0 scope lock unless this issue is itself the scope exception request.
+          required: true

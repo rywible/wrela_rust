@@ -1,0 +1,136 @@
+name: Look-dev / combat tuning task
+description: Request a bounded visual or combat-feel tuning pass with explicit proxies and review artifacts.
+title: "[TUNING] <visuals|combat>: <target outcome>"
+labels: ["tuning", "autonomous"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for bounded tuning work, not subsystem rewrites.
+
+        The goal here is to let the agent generate disciplined before/after packets for visual quality or combat feel while keeping the actual task measurable. A tuning issue without a seed, scenario, and artifact plan is not ready.
+
+  - type: textarea
+    id: tuning_metadata
+    attributes:
+      label: Tuning metadata
+      description: Keep keys stable. Use `[]`, `none`, or `unknown` where needed.
+      render: yaml
+      value: |
+        task_id:
+        tuning_domain: visuals|combat|both
+        task_source: roadmap|human|follow-up
+        parent_issue:
+        depends_on: []
+        blocked_by: []
+        crate_scope: []
+        app_scope: []
+        affects:
+          determinism: no
+          performance: yes
+          replay: no
+          tuning: yes
+          serialization_schema: no
+          visuals: yes
+          combat_feel: yes
+          baselines: yes
+          docs_contract: no
+        requires_human_taste_review: yes
+        canonical_seed:
+        canonical_scenarios: []
+        tweak_pack:
+        visual_proxy_metrics: []
+        feel_proxy_metrics: []
+        scope_lock_exception: none
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_problem
+    attributes:
+      label: Current problem
+      description: What looks or feels wrong today?
+      placeholder: |
+        Example:
+        The canopy reads flat in the hero grove, the atmospheric separation is weak, and the blade trail blooms too hard against fog. The scene has value compression and loses the late-afternoon shape language.
+    validations:
+      required: true
+
+  - type: textarea
+    id: target_outcome
+    attributes:
+      label: Target outcome
+      description: Describe the intended feel in concrete terms.
+      placeholder: |
+        Example:
+        Stronger sun shafts through canopy gaps, warmer key light, cooler fog falloff, and better silhouette separation for the wraith at duel distance. Keep frame time within the hero-scene budget.
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and invariants
+      description: What must not change while tuning?
+      value: |
+        Must preserve:
+        - deterministic capture inputs
+        - canonical scenario timing unless this issue explicitly targets combat timing
+        - current replay compatibility unless the issue says otherwise
+        - current crate boundaries unless a follow-up ADR is opened
+    validations:
+      required: true
+
+  - type: textarea
+    id: proof_plan
+    attributes:
+      label: Proof plan
+      description: State the before/after packet the PR must produce.
+      value: |
+        Required packet:
+        - before captures
+        - after captures
+        - image diff or combat proxy metrics
+        - seed and scenario list
+        - tweak pack diff
+        - frame-time comparison
+        - human review notes requested
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_proxies
+    attributes:
+      label: Acceptance proxies
+      description: These are the measurable guardrails. Human taste review still decides the final call.
+      placeholder: |
+        - Median frame time in hero scene does not regress by more than 5%.
+        - Wraith silhouette edge contrast increases in the duel framing capture set.
+        - Player light-attack recovery window remains within current scenario bounds.
+        - Capture packet is generated for all named cameras.
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Explicit non-goals
+      placeholder: |
+        - No new render pass.
+        - No AI behavior rewrite.
+        - No material system overhaul.
+        - No new enemy verbs.
+
+  - type: checkboxes
+    id: tuning_checks
+    attributes:
+      label: Discipline checks
+      options:
+        - label: This issue describes a bounded tuning pass, not an excuse for a subsystem rewrite.
+          required: true
+        - label: A human taste review is expected before merge.
+          required: true
+        - label: The task names concrete seeds, scenarios, and artifact expectations.
+          required: true
+        - label: The task defines measurable proxies in addition to subjective goals.
+          required: true

@@ -1,0 +1,1474 @@
+{
+  "project": "Wrela v0 Rust project plan",
+  "version": "1.0",
+  "assumptions": {
+    "world_size_meters": [
+      512,
+      512
+    ],
+    "target_platforms": [
+      "macOS first",
+      "portable architecture for Windows/Linux"
+    ],
+    "performance_target": "1080p60 on Mac M4 dev machine",
+    "time_of_day": "fixed late-afternoon hero lighting",
+    "combat_shape": "1v1 duels",
+    "asset_policy": "no imported meshes or animation clips; procedural generation only"
+  },
+  "prs": [
+    {
+      "id": "PR-000",
+      "title": "Workspace scaffold, conventions, and empty crate topology",
+      "lane": "Foundation",
+      "depends_on": [],
+      "crates": [
+        "workspace root",
+        "xtask",
+        "all crate skeletons"
+      ],
+      "scope": "Pre-create the full Cargo workspace, empty crate boundaries, CI stubs, lint config, docs/ADR structure, and placeholder plugin interfaces so later PRs mostly stay inside one crate.",
+      "requirements": [
+        "Create the full workspace and crate layout, including empty public APIs for every planned subsystem.",
+        "Add rust-toolchain, cargo aliases, fmt/clippy policy, feature-flag conventions, and module scaffolding.",
+        "Add docs/adr, docs/architecture, docs/tuning, scenarios/, reports/, generated-cache/ conventions.",
+        "Define the merge policy: subsystem crates only; wr_game and app crates are integration-only."
+      ],
+      "acceptance_criteria": [
+        "`cargo check --workspace` passes with all placeholder crates.",
+        "Every future PR in this plan can land by modifying at most one subsystem crate plus tests, until integration milestones.",
+        "ADR-000 documents scope cuts for v0: one biome, one hero time-of-day, one enemy archetype, one weapon, one non-streaming map."
+      ],
+      "tests": [
+        "Workspace compiles on the target Mac dev machine.",
+        "CI smoke job runs fmt, clippy, and cargo check.",
+        "One compile-only test validates that every crate exposes a plugin/init entrypoint."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-001",
+      "title": "Agent harness contract and artifact schema",
+      "lane": "Harness",
+      "depends_on": [
+        "PR-000"
+      ],
+      "crates": [
+        "wr_tools_harness",
+        "wr_telemetry"
+      ],
+      "scope": "Define the machine-readable contract the autonomous agent will use: commands, reports, artifacts, result envelopes, and failure modes.",
+      "requirements": [
+        "Define JSON schemas for scenario request, capture request, lookdev sweep request, duel report, performance report, and test result bundle.",
+        "Define stable artifact paths and naming conventions so agents can discover outputs without scraping logs.",
+        "Define the error taxonomy: build_failed, test_failed, scenario_failed, perf_regressed, visual_regressed, runtime_crash."
+      ],
+      "acceptance_criteria": [
+        "Schemas are versioned and validated during tests.",
+        "A no-op harness command can emit a valid report bundle with metadata, timestamps, git SHA, and seed info.",
+        "At least one end-to-end golden JSON report is checked in as a reference artifact."
+      ],
+      "tests": [
+        "Schema round-trip serialization tests.",
+        "Snapshot tests for canonical report payloads.",
+        "Property tests for backward-compatible report parsing when optional fields are added."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-002",
+      "title": "Test runner, reproducibility, and verification stack",
+      "lane": "Harness",
+      "depends_on": [
+        "PR-000",
+        "PR-001"
+      ],
+      "crates": [
+        "workspace root",
+        "xtask",
+        "wr_telemetry"
+      ],
+      "scope": "Install the default verification stack for the entire project so every later PR lands with the same tooling.",
+      "requirements": [
+        "Adopt cargo-nextest as the default workspace test runner.",
+        "Wire proptest for math/procedural property tests, insta for snapshots, criterion for performance benches, and tracing for structured logs.",
+        "Add machine-readable JUnit and JSON export through xtask wrappers."
+      ],
+      "acceptance_criteria": [
+        "`cargo xtask verify` runs fmt, clippy, nextest, snapshot checks, and the selected benchmark group.",
+        "A failing property test shrinks and stores the minimized repro input.",
+        "A failing snapshot test prints a human-readable diff and stores the changed artifact for review."
+      ],
+      "tests": [
+        "Self-test xtask command in CI.",
+        "Sample proptest, criterion, and snapshot tests checked into a demo crate.",
+        "Report generation test proves machine-readable outputs land in reports/."
+      ],
+      "references": [
+        "nextest",
+        "proptest",
+        "criterion",
+        "insta",
+        "tracing"
+      ],
+      "references_expanded": [
+        {
+          "title": "cargo-nextest",
+          "url": "https://nexte.st/",
+          "why": "Default test runner; process-per-test is useful for GPU and main-thread sensitive tests.",
+          "key": "nextest"
+        },
+        {
+          "title": "Proptest introduction",
+          "url": "https://proptest-rs.github.io/proptest/",
+          "why": "Property-based testing with shrinking.",
+          "key": "proptest"
+        },
+        {
+          "title": "Criterion.rs",
+          "url": "https://docs.rs/criterion/latest/criterion/",
+          "why": "Statistics-driven performance regression testing.",
+          "key": "criterion"
+        },
+        {
+          "title": "insta documentation",
+          "url": "https://docs.rs/insta/latest/insta/",
+          "why": "Snapshot tests for reports, tweak packs, traces, and structural outputs.",
+          "key": "insta"
+        },
+        {
+          "title": "tracing documentation",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "why": "Structured spans/events for telemetry and debugging.",
+          "key": "tracing"
+        }
+      ]
+    },
+    {
+      "id": "PR-003",
+      "title": "Headless scenario runner skeleton",
+      "lane": "Harness",
+      "depends_on": [
+        "PR-001",
+        "PR-002"
+      ],
+      "crates": [
+        "wr_tools_harness",
+        "wr_ecs",
+        "wr_world_seed",
+        "wr_game",
+        "apps/wr_headless"
+      ],
+      "scope": "Create the deterministic, no-window execution path that drives all autonomous validation.",
+      "requirements": [
+        "Add a headless binary that can load a scenario, simulate N fixed steps, and emit JSON reports.",
+        "Scenario files must include seed, simulation rate, spawned actors, scripted inputs, and assertions.",
+        "The runner must fail fast on assertion errors and always write a terminal report."
+      ],
+      "acceptance_criteria": [
+        "`wr_headless --scenario scenarios/smoke.ron` exits with code 0 and writes a valid report.",
+        "Simulation can run without any GPU/window dependencies.",
+        "The same scenario and seed produces identical report data on repeated runs on the same machine."
+      ],
+      "tests": [
+        "Integration tests for smoke scenarios.",
+        "Determinism regression test: same scenario twice, identical report hash.",
+        "Crash-resilience test: forced assertion failure still emits a terminal report file."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-004",
+      "title": "Local agent daemon and command surface",
+      "lane": "Harness",
+      "depends_on": [
+        "PR-001",
+        "PR-003"
+      ],
+      "crates": [
+        "wr_tools_harness",
+        "apps/wr_agentd"
+      ],
+      "scope": "Wrap build/test/run/capture workflows in a thin local service so autonomous agents can interact through a stable API instead of shell heuristics.",
+      "requirements": [
+        "Add a local-only daemon exposing commands for verify, run_scenario, capture_frames, lookdev_sweep, and perf_check.",
+        "The daemon should spawn subprocesses, stream logs, and return artifact locations.",
+        "CLI remains source of truth; daemon is only a wrapper around shared library code."
+      ],
+      "acceptance_criteria": [
+        "An HTTP request can launch a scenario and return a report descriptor with artifact paths.",
+        "The daemon can manage concurrent jobs and preserve per-job output directories.",
+        "The same command works from CLI and daemon, with identical report payloads."
+      ],
+      "tests": [
+        "API contract tests for all endpoints.",
+        "Subprocess supervision tests.",
+        "Concurrency test with at least two simultaneous no-op jobs."
+      ],
+      "references": [
+        "tokio",
+        "axum",
+        "tracing"
+      ],
+      "references_expanded": [
+        {
+          "title": "Tokio homepage",
+          "url": "https://tokio.rs/",
+          "why": "Async runtime for the local daemon and harness services.",
+          "key": "tokio"
+        },
+        {
+          "title": "axum documentation",
+          "url": "https://docs.rs/axum/latest/axum/",
+          "why": "HTTP API for the local-only agent daemon.",
+          "key": "axum"
+        },
+        {
+          "title": "tracing documentation",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "why": "Structured spans/events for telemetry and debugging.",
+          "key": "tracing"
+        }
+      ]
+    },
+    {
+      "id": "PR-005",
+      "title": "Live tweak registry and in-engine developer UI shell",
+      "lane": "Harness",
+      "depends_on": [
+        "PR-000",
+        "PR-002"
+      ],
+      "crates": [
+        "wr_tools_ui",
+        "wr_core"
+      ],
+      "scope": "Create the parameter/tweak backbone so lookdev and combat tuning are first-class, serialized, and scriptable.",
+      "requirements": [
+        "Add a typed tweak registry with namespaces: world, atmosphere, lighting, foliage, player, combat, wraith, VFX.",
+        "Support load/save of tweak packs and diff-friendly serialized output.",
+        "Create a minimal egui overlay shell with a registry inspector and live edit support."
+      ],
+      "acceptance_criteria": [
+        "At runtime, tweaks can be changed live and persisted to a pack file.",
+        "A headless scenario can apply the same tweak pack used in the live client.",
+        "A changed tweak marks the relevant subsystem dirty without requiring a restart."
+      ],
+      "tests": [
+        "Serialization tests for tweak packs.",
+        "Registry coverage test to ensure every tweak is discoverable and documented.",
+        "Snapshot test for tweak pack diff formatting."
+      ],
+      "references": [
+        "egui"
+      ],
+      "references_expanded": [
+        {
+          "title": "egui documentation",
+          "url": "https://docs.rs/egui/latest/egui/",
+          "why": "Immediate-mode dev UI for live tweak panels.",
+          "key": "egui"
+        }
+      ]
+    },
+    {
+      "id": "PR-006",
+      "title": "Platform shell, input abstraction, and fixed-step app loop",
+      "lane": "Core Runtime",
+      "depends_on": [
+        "PR-000",
+        "PR-002"
+      ],
+      "crates": [
+        "wr_platform",
+        "apps/wr_client"
+      ],
+      "scope": "Create the native windowed app shell, input layer, and deterministic frame/fixed-update loop.",
+      "requirements": [
+        "Use winit to create the window, drive OS events, and unify keyboard/mouse/game input into engine actions.",
+        "Add variable-rate render plus fixed-rate simulation stepping.",
+        "Support windowed and borderless modes, resize handling, and frame pacing diagnostics."
+      ],
+      "acceptance_criteria": [
+        "Client window opens and closes cleanly on the Mac dev machine.",
+        "Simulation runs at a stable fixed tick regardless of render framerate.",
+        "Input events are captured through an action layer rather than direct key codes."
+      ],
+      "tests": [
+        "Unit tests for input mapping and edge transitions.",
+        "Headless timing tests for fixed-step catch-up behavior.",
+        "Manual smoke checklist for window lifecycle and focus changes."
+      ],
+      "references": [
+        "winit"
+      ],
+      "references_expanded": [
+        {
+          "title": "winit documentation",
+          "url": "https://docs.rs/crate/winit/latest",
+          "why": "Low-level cross-platform windowing and event loop.",
+          "key": "winit"
+        }
+      ]
+    },
+    {
+      "id": "PR-007",
+      "title": "ECS world, schedules, and plugin composition model",
+      "lane": "Core Runtime",
+      "depends_on": [
+        "PR-000",
+        "PR-006"
+      ],
+      "crates": [
+        "wr_ecs",
+        "wr_game"
+      ],
+      "scope": "Stand up the gameplay world and the scheduling model that all systems plug into.",
+      "requirements": [
+        "Use standalone Bevy ECS for entities, resources, systems, and schedules.",
+        "Define explicit schedules: Startup, FixedPrePhysics, FixedPhysics, FixedGameplay, FixedPostGameplay, Extract, RenderPrep, Shutdown.",
+        "Provide a plugin registration pattern so subsystem crates can export systems without touching integration code."
+      ],
+      "acceptance_criteria": [
+        "A sample plugin can register systems and resources into the game without global mutable registries.",
+        "Schedule ordering and ambiguity checks are enabled for debug builds.",
+        "System sets exist for worldgen, combat, AI, rendering extraction, and tooling."
+      ],
+      "tests": [
+        "Schedule ordering tests.",
+        "System parallelism/ambiguity smoke tests.",
+        "Entity/resource lifecycle tests."
+      ],
+      "references": [
+        "bevy_ecs"
+      ],
+      "references_expanded": [
+        {
+          "title": "bevy_ecs documentation",
+          "url": "https://docs.rs/crate/bevy_ecs/latest",
+          "why": "Standalone ECS with schedules, systems, resources, and parallel execution.",
+          "key": "bevy_ecs"
+        }
+      ]
+    },
+    {
+      "id": "PR-008",
+      "title": "Deterministic seed graph, RNG, and config packs",
+      "lane": "Core Runtime",
+      "depends_on": [
+        "PR-000",
+        "PR-002"
+      ],
+      "crates": [
+        "wr_world_seed",
+        "wr_core",
+        "wr_math"
+      ],
+      "scope": "Create the deterministic seed and config story that every procedural subsystem uses.",
+      "requirements": [
+        "Define a root world seed and hierarchical sub-seeds for terrain, ecology, trees, wraiths, combat scenarios, and VFX.",
+        "Never allow deterministic codepaths to depend on hash map iteration order or global RNG state.",
+        "Support named config packs that override defaults but keep the same seed topology."
+      ],
+      "acceptance_criteria": [
+        "Same seed + same config pack => identical generated stats on repeated runs.",
+        "Changing one sub-seed only changes the owning subsystem outputs.",
+        "The report bundle includes root seed and sub-seed derivation info."
+      ],
+      "tests": [
+        "Property tests for seed derivation uniqueness and stability.",
+        "Snapshot tests for generated seed trees.",
+        "Cross-run determinism tests."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-009",
+      "title": "Telemetry, metrics, and profiler plumbing",
+      "lane": "Core Runtime",
+      "depends_on": [
+        "PR-002",
+        "PR-006",
+        "PR-007"
+      ],
+      "crates": [
+        "wr_telemetry",
+        "wr_core"
+      ],
+      "scope": "Make every later subsystem observable by default.",
+      "requirements": [
+        "Wrap major systems in tracing spans and counters.",
+        "Add per-frame metrics collection for frame time, sim time, render time, draw counts, entity counts, and memory snapshots.",
+        "Gate Tracy integration behind a non-default feature flag."
+      ],
+      "acceptance_criteria": [
+        "A scenario run emits structured traces and a metrics summary file.",
+        "Instrumentation overhead can be disabled in release builds.",
+        "Profiling can be turned on without code changes through features/config."
+      ],
+      "tests": [
+        "Metrics schema tests.",
+        "Trace span smoke tests.",
+        "Feature-flag compile tests for Tracy enabled vs disabled."
+      ],
+      "references": [
+        "tracing",
+        "tracy-client"
+      ],
+      "references_expanded": [
+        {
+          "title": "tracing documentation",
+          "url": "https://docs.rs/tracing/latest/tracing/",
+          "why": "Structured spans/events for telemetry and debugging.",
+          "key": "tracing"
+        },
+        {
+          "title": "tracy-client documentation",
+          "url": "https://docs.rs/tracy-client/latest/tracy_client/",
+          "why": "Optional low-overhead profiler integration.",
+          "key": "tracy-client"
+        }
+      ]
+    },
+    {
+      "id": "PR-010",
+      "title": "wgpu backend skeleton, offscreen render path, and frame capture",
+      "lane": "Render",
+      "depends_on": [
+        "PR-006",
+        "PR-007",
+        "PR-009"
+      ],
+      "crates": [
+        "wr_render_api",
+        "wr_render_wgpu",
+        "apps/wr_client",
+        "apps/wr_headless"
+      ],
+      "scope": "Bring up the GPU backend and prove both on-screen and offscreen rendering work.",
+      "requirements": [
+        "Adopt wgpu as the graphics abstraction and WGSL as the shading language.",
+        "Support swapchain rendering for the client and offscreen texture rendering for headless capture.",
+        "Add frame capture to PNG for deterministic inspection."
+      ],
+      "acceptance_criteria": [
+        "Client can clear a window and present frames.",
+        "Headless runner can render to an offscreen target and save a PNG.",
+        "Render device/adapter selection is reported in telemetry."
+      ],
+      "tests": [
+        "Shader compilation smoke tests.",
+        "Offscreen capture integration test.",
+        "Image output test that verifies dimensions, color space, and non-empty pixels."
+      ],
+      "references": [
+        "wgpu",
+        "image"
+      ],
+      "references_expanded": [
+        {
+          "title": "wgpu documentation",
+          "url": "https://docs.rs/wgpu/latest/wgpu/",
+          "why": "Cross-platform Rust graphics API for Metal/Vulkan/D3D12/OpenGL/WebGPU.",
+          "key": "wgpu"
+        },
+        {
+          "title": "image crate docs",
+          "url": "https://docs.rs/image/latest/image/",
+          "why": "PNG encode/decode and image processing for captures and metrics.",
+          "key": "image"
+        }
+      ]
+    },
+    {
+      "id": "PR-011",
+      "title": "Render graph, shader module pipeline, and scene extraction API",
+      "lane": "Render",
+      "depends_on": [
+        "PR-010",
+        "PR-007"
+      ],
+      "crates": [
+        "wr_render_api",
+        "wr_render_wgpu",
+        "wr_game"
+      ],
+      "scope": "Define how gameplay data becomes renderable data without tangling sim and rendering code.",
+      "requirements": [
+        "Implement a small explicit render graph with named passes and resource edges.",
+        "Add an extract stage that copies immutable render-ready data out of gameplay ECS into render structs.",
+        "Define pipeline/shader asset boundaries so later PRs add passes without editing core code."
+      ],
+      "acceptance_criteria": [
+        "A debug triangle or cube can be extracted from ECS and rendered through the graph.",
+        "Render passes can declare dependencies and be validated.",
+        "Scene extraction is frame-safe and does not retain mutable gameplay borrows."
+      ],
+      "tests": [
+        "Render graph validation tests.",
+        "Extraction contract tests.",
+        "Compile-time feature tests for pass registration."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-012",
+      "title": "Terrain scalar fields: height, slope, moisture, fog, canopy opportunity",
+      "lane": "World",
+      "depends_on": [
+        "PR-008",
+        "PR-007"
+      ],
+      "crates": [
+        "wr_world_gen",
+        "wr_math"
+      ],
+      "scope": "Generate the low-frequency ecological fields that the forest uses instead of hand-authored placement.",
+      "requirements": [
+        "Generate a 512m x 512m hero biome scalar field set from seed and config.",
+        "Fields must include at minimum height, slope, drainage/moisture, shade/canopy opportunity, deadfall probability, and hero-path bias.",
+        "Generation must be deterministic and fast enough for headless tests."
+      ],
+      "acceptance_criteria": [
+        "Canonical seeds produce field summaries and debug dumps.",
+        "Fields are sampled through a stable API used by later generators.",
+        "Debug visualizations can render each field as an overlay."
+      ],
+      "tests": [
+        "Property tests for field bounds and continuity.",
+        "Snapshot tests for field summary stats by seed.",
+        "Benchmarks for field generation throughput."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-013",
+      "title": "Terrain mesh generation, chunking, and static collision bake",
+      "lane": "World",
+      "depends_on": [
+        "PR-012",
+        "PR-010",
+        "PR-011"
+      ],
+      "crates": [
+        "wr_procgeo",
+        "wr_world_gen",
+        "wr_physics",
+        "wr_render_scene"
+      ],
+      "scope": "Turn terrain fields into renderable geometry and collision.",
+      "requirements": [
+        "Generate chunked terrain meshes from scalar fields with deterministic triangulation.",
+        "Build static collision for the same terrain and expose sample queries.",
+        "Support debug overlays for normals, tangents, and collision wireframe."
+      ],
+      "acceptance_criteria": [
+        "Terrain renders in the client and collides in headless tests.",
+        "Chunk seams are crack-free.",
+        "The same terrain seed produces identical mesh statistics and collider stats."
+      ],
+      "tests": [
+        "Mesh topology tests.",
+        "Collision raycast tests.",
+        "Snapshot tests for chunk stats."
+      ],
+      "references": [
+        "rapier"
+      ],
+      "references_expanded": [
+        {
+          "title": "Rapier docs",
+          "url": "https://rapier.rs/docs/",
+          "why": "Physics, collision, queries, snapshotting, optional cross-platform determinism.",
+          "key": "rapier"
+        }
+      ]
+    },
+    {
+      "id": "PR-014",
+      "title": "Ecological placement solver for trunks, understory, and deadfall anchors",
+      "lane": "World",
+      "depends_on": [
+        "PR-012"
+      ],
+      "crates": [
+        "wr_world_gen",
+        "wr_world_seed"
+      ],
+      "scope": "Place major world objects from ecological rules rather than paint-by-hand authoring.",
+      "requirements": [
+        "Use scalar fields plus blue-noise/Poisson-style sampling and competition rules to place tree candidates.",
+        "Bias tree spacing, understory density, and fallen-log anchors from slope, moisture, and canopy opportunity.",
+        "Export placement maps and stats for harness inspection."
+      ],
+      "acceptance_criteria": [
+        "Placements are deterministic and stable per seed.",
+        "No major placements intersect forbidden hero-path corridors or impossible slopes.",
+        "Density and spacing targets are configurable and observable in reports."
+      ],
+      "tests": [
+        "Property tests for minimum spacing and forbidden-zone compliance.",
+        "Snapshot tests for per-seed density distributions.",
+        "Benchmarks for placement solve time."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-015",
+      "title": "Redwood tree graph generator using space-colonization growth",
+      "lane": "World",
+      "depends_on": [
+        "PR-014",
+        "PR-008"
+      ],
+      "crates": [
+        "wr_world_gen",
+        "wr_math"
+      ],
+      "scope": "Generate the branching skeletons for hero redwoods from seed and growth parameters.",
+      "requirements": [
+        "Implement a tree graph generator inspired by the space-colonization algorithm, with redwood-specific biases for tall trunks, sparse lower limbs, and elevated canopy mass.",
+        "Expose parameters for attraction radius, segment length, tropism, taper, branch culling, and canopy envelope.",
+        "Output graph-only data first, not render meshes."
+      ],
+      "acceptance_criteria": [
+        "Tree graphs are acyclic and connected.",
+        "Radius/taper decreases monotonically away from the trunk root except where explicitly overridden for buttress behavior.",
+        "Canonical seeds produce believable redwood silhouettes in graph debug renders."
+      ],
+      "tests": [
+        "Property tests for graph invariants.",
+        "Snapshot tests for graph stats and selected node lists.",
+        "Benchmarks for batch generation of tree graphs."
+      ],
+      "references": [
+        "space_colonization"
+      ],
+      "references_expanded": [
+        {
+          "title": "Modeling Trees with a Space Colonization Algorithm",
+          "url": "https://algorithmicbotany.org/papers/colonization.egwnp2007.pdf",
+          "why": "Primary tree-graph generation reference.",
+          "key": "space_colonization"
+        }
+      ]
+    },
+    {
+      "id": "PR-016",
+      "title": "Procedural bark, trunk, and branch mesh generation with LODs",
+      "lane": "World",
+      "depends_on": [
+        "PR-015",
+        "PR-010",
+        "PR-011"
+      ],
+      "crates": [
+        "wr_procgeo",
+        "wr_render_scene"
+      ],
+      "scope": "Convert tree graphs into meshable trunk/branch geometry that still feels authored.",
+      "requirements": [
+        "Generate generalized-cylinder trunk and major branch meshes from the tree graph.",
+        "Add bark ridge displacement and taper-aware UV/procedural material coordinates.",
+        "Produce at least three LOD tiers plus debug normals/tangents."
+      ],
+      "acceptance_criteria": [
+        "Meshes are watertight enough for stable shadowing and collision proxies.",
+        "LOD transitions preserve silhouette within the chosen budget.",
+        "A tree batch can be generated and rendered in a forest scene."
+      ],
+      "tests": [
+        "Topology tests for degenerate triangles and NaNs.",
+        "LOD consistency tests.",
+        "Benchmarks for generation time and vertex counts."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-017",
+      "title": "Procedural foliage clusters, canopy cards, and material functions",
+      "lane": "World",
+      "depends_on": [
+        "PR-015",
+        "PR-016",
+        "PR-010"
+      ],
+      "crates": [
+        "wr_procgeo",
+        "wr_render_scene",
+        "wr_render_wgpu"
+      ],
+      "scope": "Create the redwood canopy and branch-tip masses without preauthored textures or meshes.",
+      "requirements": [
+        "Generate procedural foliage cluster geometry from tree branch tips and canopy envelopes.",
+        "Use procedural alpha masks, gradients, and normals rather than painted textures.",
+        "Support instancing and billboarding only where it is visually safe."
+      ],
+      "acceptance_criteria": [
+        "Canopy density is controllable and readable from hero-ground views.",
+        "Foliage materials compile without external textures except allowed small LUTs/noise tables.",
+        "Tree batches remain within the vertex and draw-call targets defined in docs/perf-budget.md."
+      ],
+      "tests": [
+        "Material parameter packing tests.",
+        "Snapshot tests for canopy statistics per tree.",
+        "Offscreen visual smoke tests for near and far canopy views."
+      ],
+      "references": [
+        "speedtree_csm"
+      ],
+      "references_expanded": [
+        {
+          "title": "GPU Gems 3, Next-Generation SpeedTree Rendering",
+          "url": "https://developer.nvidia.com/gpugems/gpugems3/part-i-geometry/chapter-4-next-generation-speedtree-rendering",
+          "why": "Foliage and cascaded-shadow practical reference.",
+          "key": "speedtree_csm"
+        }
+      ]
+    },
+    {
+      "id": "PR-018",
+      "title": "Ground cover, deadfall, roots, and set-dressing generators",
+      "lane": "World",
+      "depends_on": [
+        "PR-012",
+        "PR-014",
+        "PR-016"
+      ],
+      "crates": [
+        "wr_world_gen",
+        "wr_procgeo",
+        "wr_render_scene"
+      ],
+      "scope": "Fill the forest floor with generated structure so the biome feels authored even though it is not.",
+      "requirements": [
+        "Generate ferns, low brush, roots, fallen trunks, stumps, and rock/debris forms from seed and terrain fields.",
+        "Keep hero traversal readability by respecting movement corridors and combat clearings.",
+        "Expose density controls and debug overlays."
+      ],
+      "acceptance_criteria": [
+        "The forest floor reads as rich, layered, and traversable in canonical cameras.",
+        "No deadfall or roots create unavoidable collision traps around duel arenas.",
+        "All generated props derive from math/procedural geometry paths, not imported assets."
+      ],
+      "tests": [
+        "Placement validity tests.",
+        "Collision clearance tests around spawn zones.",
+        "Visual smoke tests for canonical camera rails."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-019",
+      "title": "Wind fields and vegetation secondary motion",
+      "lane": "World",
+      "depends_on": [
+        "PR-017",
+        "PR-005"
+      ],
+      "crates": [
+        "wr_world_gen",
+        "wr_render_scene",
+        "wr_render_wgpu"
+      ],
+      "scope": "Add believable motion to the forest without turning it into a full simulation project.",
+      "requirements": [
+        "Define low-frequency global wind plus localized gust noise fields.",
+        "Drive trunk sway, branch flex, and canopy shimmer from analytical functions and per-instance parameters.",
+        "Keep all motion deterministic under a given time origin for capture tests."
+      ],
+      "acceptance_criteria": [
+        "Static screenshots can opt to freeze wind; live runs show layered motion with clear frequency separation.",
+        "Wind response is parameterized by tree size and canopy mass.",
+        "Motion remains stable under pause/resume and step-frame tooling."
+      ],
+      "tests": [
+        "Parameter serialization tests.",
+        "Time-scrub determinism tests.",
+        "Offscreen captures at fixed times verifying repeatable transforms."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-020",
+      "title": "Hillaire atmosphere LUTs and sky rendering",
+      "lane": "Lighting",
+      "depends_on": [
+        "PR-010",
+        "PR-011",
+        "PR-005"
+      ],
+      "crates": [
+        "wr_render_atmo",
+        "wr_render_wgpu"
+      ],
+      "scope": "Implement the hero sky and atmosphere stack for a fixed late-afternoon setup.",
+      "requirements": [
+        "Implement transmittance, multiscattering, sky-view, and aerial-perspective lookups following Hillaire\u2019s approach.",
+        "Support fixed hero time-of-day first; parameter changes trigger LUT regeneration.",
+        "Expose sun elevation, atmosphere density, ozone, and artistic remap controls through the tweak registry."
+      ],
+      "acceptance_criteria": [
+        "Sky renders from ground view with stable horizon coloration and aerial perspective.",
+        "LUTs can be debug-viewed in-engine and exported in headless mode.",
+        "Turning atmosphere off/on is isolated and testable."
+      ],
+      "tests": [
+        "CPU-side parameter packing tests.",
+        "Shader/offscreen regression images for canonical sky cameras.",
+        "LUT regeneration smoke tests."
+      ],
+      "references": [
+        "hillaire_paper",
+        "hillaire_demo"
+      ],
+      "references_expanded": [
+        {
+          "title": "A Scalable and Production Ready Sky and Atmosphere Rendering Technique",
+          "url": "https://sebh.github.io/publications/egsr2020.pdf",
+          "why": "Primary atmosphere implementation reference.",
+          "key": "hillaire_paper"
+        },
+        {
+          "title": "UnrealEngineSkyAtmosphere companion project",
+          "url": "https://github.com/sebh/UnrealEngineSkyAtmosphere",
+          "why": "Reference implementation accompanying the Hillaire paper.",
+          "key": "hillaire_demo"
+        }
+      ]
+    },
+    {
+      "id": "PR-021",
+      "title": "Directional sun, cascaded shadows, and cloud-shadow cheat layer",
+      "lane": "Lighting",
+      "depends_on": [
+        "PR-013",
+        "PR-016",
+        "PR-017",
+        "PR-020"
+      ],
+      "crates": [
+        "wr_render_scene",
+        "wr_render_wgpu",
+        "wr_render_atmo"
+      ],
+      "scope": "Add the lighting backbone for the forest: sun, shadows, and moving shadow breakup.",
+      "requirements": [
+        "Implement stable cascaded shadow maps for terrain, trunks, and alpha-tested foliage.",
+        "Add a cheap cloud-shadow or canopy-shadow modulation layer to break up lighting and sell scale.",
+        "Support per-pass debug views for each cascade and shadow coverage."
+      ],
+      "acceptance_criteria": [
+        "Forest floor and trunks receive believable directional shadows.",
+        "Shadow swimming is bounded and acceptable during player motion.",
+        "Canonical captures show readable contrast in both sunlit and shaded regions."
+      ],
+      "tests": [
+        "Cascade split math tests.",
+        "Shadow matrix regression tests.",
+        "Offscreen shadow debug captures for canonical camera positions."
+      ],
+      "references": [
+        "speedtree_csm"
+      ],
+      "references_expanded": [
+        {
+          "title": "GPU Gems 3, Next-Generation SpeedTree Rendering",
+          "url": "https://developer.nvidia.com/gpugems/gpugems3/part-i-geometry/chapter-4-next-generation-speedtree-rendering",
+          "why": "Foliage and cascaded-shadow practical reference.",
+          "key": "speedtree_csm"
+        }
+      ]
+    },
+    {
+      "id": "PR-022",
+      "title": "Post stack: AO, contact shadows, bloom, tonemap, and color grade",
+      "lane": "Lighting",
+      "depends_on": [
+        "PR-020",
+        "PR-021",
+        "PR-010",
+        "PR-011"
+      ],
+      "crates": [
+        "wr_render_post",
+        "wr_render_wgpu"
+      ],
+      "scope": "Finish the stylized AAA outdoor image with restrained post-processing.",
+      "requirements": [
+        "Add ambient occlusion or a near-field occlusion approximation suitable for trunk/root grounding.",
+        "Add screen-space contact shadow support for the sword and wraith grounding.",
+        "Add bloom, filmic tonemapping, color grading, vignette, and exposure controls."
+      ],
+      "acceptance_criteria": [
+        "Post stack can be toggled per effect for debugging.",
+        "Canonical before/after captures show clear quality gains without crushing readability.",
+        "Post settings are driven entirely by tweak packs."
+      ],
+      "tests": [
+        "Parameter packing tests.",
+        "Offscreen regression captures.",
+        "Histogram summary tests to catch broken exposure/grade configurations."
+      ],
+      "references": [
+        "hillaire_volumetric"
+      ],
+      "references_expanded": [
+        {
+          "title": "S\u00e9bastien Hillaire publications page",
+          "url": "https://sebh.github.io/publications/",
+          "why": "Volumetric rendering, sky, atmosphere, and cloud references from the same author.",
+          "key": "hillaire_volumetric"
+        }
+      ]
+    },
+    {
+      "id": "PR-023",
+      "title": "Player pawn: floating katana camera rig and action mapping",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-006",
+        "PR-007",
+        "PR-005"
+      ],
+      "crates": [
+        "wr_actor_player",
+        "wr_game"
+      ],
+      "scope": "Implement the sword-as-character first-person presentation and input verbs.",
+      "requirements": [
+        "Create the camera rig, sword anchor rig, and action map for strafe, jump, dash, light attack, heavy attack, and parry.",
+        "No human body, arms, or sleeves in v0; only sword and VFX presentation.",
+        "Keep sword presentation decoupled from combat solve so lookdev can iterate independently."
+      ],
+      "acceptance_criteria": [
+        "Player can move in a blank test map with sword visible and responsive.",
+        "Action buffering exists for combat verbs.",
+        "Camera and sword bob/sway are tweakable and can be disabled for tests."
+      ],
+      "tests": [
+        "Input-to-action tests.",
+        "Camera transform tests.",
+        "Headless action buffer tests."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-024",
+      "title": "Movement and kinematic physics integration",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-013",
+        "PR-023"
+      ],
+      "crates": [
+        "wr_physics",
+        "wr_actor_player"
+      ],
+      "scope": "Make navigation and dueling locomotion reliable on procedural terrain.",
+      "requirements": [
+        "Implement grounded movement, jump, air control, dash, slope handling, and simple step-up behavior.",
+        "Use Rapier for terrain queries, broadphase, and character/world collision, but keep the controller game-feel driven.",
+        "Expose movement tuning through tweak packs."
+      ],
+      "acceptance_criteria": [
+        "Player can traverse terrain without jitter or tunneling in canonical maps.",
+        "Dash respects collision and recovery rules.",
+        "Jump and landing state transitions are deterministic under fixed-step simulation."
+      ],
+      "tests": [
+        "Slope and grounding tests.",
+        "Dash collision tests.",
+        "Property tests for controller invariants under repeated step sequences."
+      ],
+      "references": [
+        "rapier"
+      ],
+      "references_expanded": [
+        {
+          "title": "Rapier docs",
+          "url": "https://rapier.rs/docs/",
+          "why": "Physics, collision, queries, snapshotting, optional cross-platform determinism.",
+          "key": "rapier"
+        }
+      ]
+    },
+    {
+      "id": "PR-025",
+      "title": "Intent-to-trajectory combat library",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-023",
+        "PR-005",
+        "PR-008"
+      ],
+      "crates": [
+        "wr_combat",
+        "wr_math"
+      ],
+      "scope": "Create the authored-feeling mathematical move families that replace traditional animation clips.",
+      "requirements": [
+        "Map verbs to parameterized trajectory families, not raw hand-authored poses.",
+        "Support guard, anticipation, strike, follow-through, recovery, and cancel windows.",
+        "Use spring/PD-style controllers and spline/path parameterization to keep motion readable and sick-looking."
+      ],
+      "acceptance_criteria": [
+        "Player sword can execute light, heavy, dash slash, and parry trajectories in isolation.",
+        "Trajectory families are deterministic given verb + seed + tuning pack.",
+        "Moves expose enough parameters for lookdev without requiring code edits."
+      ],
+      "tests": [
+        "Trajectory sampling tests.",
+        "Property tests for continuity, bounded angular velocity, and recovery completion.",
+        "Golden trajectory snapshot tests for canonical moves."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-026",
+      "title": "Sword hit queries, clash solver, sparks, and recoil",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-024",
+        "PR-025",
+        "PR-009"
+      ],
+      "crates": [
+        "wr_combat",
+        "wr_physics",
+        "wr_vfx"
+      ],
+      "scope": "Add the contact logic that makes duels legible and satisfying without full rigid-body sword simulation.",
+      "requirements": [
+        "Use swept blade volumes/capsules for hit detection.",
+        "Implement selective sword-on-sword clash handling, parry windows, recoil impulses to controllers, and blade spark events.",
+        "Keep contact resolution bounded and stylized rather than fully emergent."
+      ],
+      "acceptance_criteria": [
+        "Sword-to-wraith hits, sword-to-sword clashes, and parry interactions produce distinct events.",
+        "Clashes create visible spark events and push moves into recovery or rebound states.",
+        "No authored animation clips are involved in the resolution path."
+      ],
+      "tests": [
+        "Continuous collision tests for swept blade volumes.",
+        "State transition tests for clash/recovery/parry cases.",
+        "Headless duel micro-scenarios with expected event sequences."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-027",
+      "title": "Wraith body graph, silhouette mesh, and presentation rig",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-007",
+        "PR-016",
+        "PR-005"
+      ],
+      "crates": [
+        "wr_actor_wraith",
+        "wr_procgeo",
+        "wr_render_scene"
+      ],
+      "scope": "Create the enemy body presentation that dodges the uncanny valley and stays procedural.",
+      "requirements": [
+        "Build a non-human, silhouette-first wraith rig: core body graph, head/torso suggestion, blade anchor, cloth pins, and emissive/fog anchors.",
+        "Generate mesh/shell geometry procedurally from that graph.",
+        "Support readable enemy posing from a small set of procedural pose families."
+      ],
+      "acceptance_criteria": [
+        "Wraith can be instantiated and rendered with a stable silhouette from multiple combat distances.",
+        "No faces, fingers, or human-detail requirements exist in v0.",
+        "Presentation parameters are tweakable and seed-driven."
+      ],
+      "tests": [
+        "Mesh validity tests.",
+        "Pose family snapshot tests.",
+        "Canonical camera smoke captures."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-028",
+      "title": "Wraith cloth and ribbon simulation with XPBD",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-027",
+        "PR-024"
+      ],
+      "crates": [
+        "wr_actor_wraith",
+        "wr_math",
+        "wr_render_scene"
+      ],
+      "scope": "Add low-cost, expressive trailing cloth to the wraith silhouette.",
+      "requirements": [
+        "Implement low-resolution strip/ribbon cloth using XPBD or equivalent compliant constraints.",
+        "Pin cloth to the wraith rig and drive secondary motion from root/body acceleration plus wind.",
+        "Add collision only where it materially improves the silhouette; avoid full cloth-world interaction in v0."
+      ],
+      "acceptance_criteria": [
+        "Cloth motion is stable under aggressive movement and dash attacks.",
+        "Solver parameters are exposed and hot-tweakable.",
+        "The cloth system can be fully disabled for performance comparisons."
+      ],
+      "tests": [
+        "Constraint stability tests.",
+        "Pause/resume/time-step consistency tests.",
+        "Visual smoke tests for canonical attack motions."
+      ],
+      "references": [
+        "xpbd"
+      ],
+      "references_expanded": [
+        {
+          "title": "XPBD: Position-Based Simulation of Compliant Constrained Dynamics",
+          "url": "https://matthias-research.github.io/pages/publications/XPBD.pdf",
+          "why": "Primary cloth/ribbon constraint solver reference.",
+          "key": "xpbd"
+        }
+      ]
+    },
+    {
+      "id": "PR-029",
+      "title": "Wraith duel AI base: spacing, telegraphs, and reaction model",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-026",
+        "PR-027",
+        "PR-024"
+      ],
+      "crates": [
+        "wr_ai",
+        "wr_actor_wraith",
+        "wr_combat"
+      ],
+      "scope": "Get the enemy to duel, not just animate.",
+      "requirements": [
+        "Implement a deterministic duel planner with spacing control, threat evaluation, parry/recovery awareness, and telegraph timing.",
+        "AI decisions should operate on combat state and visibility, not animation clip timing.",
+        "Expose behavior tuning packs for aggression, patience, feint frequency, and dash probability."
+      ],
+      "acceptance_criteria": [
+        "A single wraith can approach, attack, retreat, and punish predictable player behavior.",
+        "AI state transitions are reported in telemetry and scenario logs.",
+        "Same seed + same input sequence => same AI decision trace on the same machine."
+      ],
+      "tests": [
+        "Decision trace snapshot tests.",
+        "Scenario tests for spacing and telegraph timing.",
+        "Property tests for valid state transitions."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-030",
+      "title": "Enemy move composers and flashy move-set families",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-025",
+        "PR-029",
+        "PR-028"
+      ],
+      "crates": [
+        "wr_ai",
+        "wr_combat",
+        "wr_actor_wraith"
+      ],
+      "scope": "Give the wraith a more theatrical move vocabulary than the player.",
+      "requirements": [
+        "Implement at least five enemy move families: quick cut, overhead heavy, dash lunge, sweeping multi-cut, and feint-to-counter.",
+        "Move families are still parameterized trajectories, not clips.",
+        "Each move family advertises telegraph/readability windows for gameplay testing."
+      ],
+      "acceptance_criteria": [
+        "Canonical duel scenarios demonstrate all enemy move families.",
+        "Enemy moves are visually distinct and identifiable in telemetry traces.",
+        "Flashiness does not break parry/recovery rules."
+      ],
+      "tests": [
+        "Move-family registry tests.",
+        "Scenario coverage tests ensuring each move family is exercised.",
+        "Visual capture set for enemy move gallery."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-031",
+      "title": "VFX package: telekinesis, sword trails, sparks, fog wisps, hit flashes",
+      "lane": "Gameplay",
+      "depends_on": [
+        "PR-020",
+        "PR-026",
+        "PR-027"
+      ],
+      "crates": [
+        "wr_vfx",
+        "wr_render_scene",
+        "wr_render_wgpu"
+      ],
+      "scope": "Add the non-geometry juice that sells combat and supernatural presence.",
+      "requirements": [
+        "Implement procedural particle/ribbon systems for sword trails, clash sparks, sword hum arcs, and wraith fog wisps.",
+        "All VFX must be generated from math, events, and tweak packs, not imported flipbooks.",
+        "Provide event-driven spawning interfaces shared by combat and AI systems."
+      ],
+      "acceptance_criteria": [
+        "Every major combat event has a corresponding VFX hook.",
+        "VFX can be disabled per channel for debugging and performance tests.",
+        "Canonical captures show the sword and wraith reading strongly even in shadow."
+      ],
+      "tests": [
+        "Spawn/event wiring tests.",
+        "Deterministic particle-seed tests.",
+        "Capture smoke tests for canonical events."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-032",
+      "title": "Lookdev automation: camera rails, galleries, and image metrics",
+      "lane": "Automation",
+      "depends_on": [
+        "PR-004",
+        "PR-005",
+        "PR-010"
+      ],
+      "crates": [
+        "wr_tools_harness",
+        "wr_tools_ui",
+        "wr_render_post"
+      ],
+      "scope": "Give the agent the ability to iterate on the look of the world without a human in the loop.",
+      "requirements": [
+        "Add named camera rails and canonical still cameras stored as scenario assets.",
+        "Add a lookdev sweep command that applies tweak packs, captures frames, and writes a gallery plus summary metrics.",
+        "Implement permissively licensed image metrics in-house on top of the image crate: histogram deltas, edge density, contrast bands, and a simple SSIM-style metric if needed."
+      ],
+      "acceptance_criteria": [
+        "A single command can generate a lookdev gallery for a seed and tweak pack.",
+        "Metrics are emitted alongside captured frames and compared to baselines.",
+        "Agents can request captures without opening a visible window."
+      ],
+      "tests": [
+        "Gallery manifest tests.",
+        "Metric math unit tests.",
+        "Integration test generating a small contact sheet from offscreen frames."
+      ],
+      "references": [
+        "image"
+      ],
+      "references_expanded": [
+        {
+          "title": "image crate docs",
+          "url": "https://docs.rs/image/latest/image/",
+          "why": "PNG encode/decode and image processing for captures and metrics.",
+          "key": "image"
+        }
+      ]
+    },
+    {
+      "id": "PR-033",
+      "title": "Autoplay duel bot and gameplay-loop assertions",
+      "lane": "Automation",
+      "depends_on": [
+        "PR-003",
+        "PR-026",
+        "PR-029"
+      ],
+      "crates": [
+        "wr_ai",
+        "wr_tools_harness",
+        "wr_combat"
+      ],
+      "scope": "Let the autonomous system play the duel loop and verify the game remains playable.",
+      "requirements": [
+        "Implement a scripted/autoplay pilot that uses the same input action layer as a human player.",
+        "Add scenario assertions for time-to-engage, duel duration range, hit/parry counts, and player survivability thresholds.",
+        "Emit duel summaries and replayable input traces."
+      ],
+      "acceptance_criteria": [
+        "Headless duel scenarios can be completed by the autoplay pilot.",
+        "A failed duel assertion produces a replay bundle the developer or agent can rerun locally.",
+        "Autoplay can be toggled between white-box helper mode and pure-input black-box mode."
+      ],
+      "tests": [
+        "Replay determinism tests.",
+        "Scenario assertion tests.",
+        "Telemetry summary snapshot tests."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-034",
+      "title": "Biome vertical slice integration: forest traversal and hero cameras",
+      "lane": "Integration",
+      "depends_on": [
+        "PR-019",
+        "PR-020",
+        "PR-021",
+        "PR-022",
+        "PR-023",
+        "PR-024",
+        "PR-032"
+      ],
+      "crates": [
+        "wr_game",
+        "apps/wr_client",
+        "apps/wr_headless"
+      ],
+      "scope": "First full slice: walk through the generated biome with the hero lighting stack online.",
+      "requirements": [
+        "Wire worldgen, terrain, forest rendering, atmosphere, lighting, post, movement, and dev UI into the game app.",
+        "Spawn canonical hero cameras and traversal paths for lookdev and performance captures.",
+        "Add a packaged smoke scenario for \u2018spawn, traverse, dash, jump, look around, capture gallery\u2019."
+      ],
+      "acceptance_criteria": [
+        "The user can launch the client and walk a generated redwood grove with hero lighting.",
+        "The lookdev sweep works on the integrated slice.",
+        "Performance and image reports are emitted from the same integrated build."
+      ],
+      "tests": [
+        "Traversal smoke scenarios.",
+        "Integrated offscreen capture regression set.",
+        "Frame-time benchmark over a canonical traversal path."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-035",
+      "title": "Combat vertical slice integration: playable duel in the forest",
+      "lane": "Integration",
+      "depends_on": [
+        "PR-026",
+        "PR-027",
+        "PR-028",
+        "PR-029",
+        "PR-030",
+        "PR-031",
+        "PR-033",
+        "PR-034"
+      ],
+      "crates": [
+        "wr_game",
+        "apps/wr_client",
+        "apps/wr_headless"
+      ],
+      "scope": "Second full slice: fight a wraith in the actual biome.",
+      "requirements": [
+        "Wire player combat, wraith presentation, AI, cloth, VFX, and duel scenarios into the integrated app.",
+        "Add at least one duel clearing generated from the same biome seed and placement rules.",
+        "Add canonical duel scenarios for both human play and autoplay verification."
+      ],
+      "acceptance_criteria": [
+        "A human can launch the client, reach a duel clearing, and fight a wraith end-to-end.",
+        "Autoplay can complete the duel scenario and emit a summary report.",
+        "The duel loop uses no imported meshes or animation clips."
+      ],
+      "tests": [
+        "Integrated duel scenarios.",
+        "Replay tests for canonical seeds.",
+        "Capture gallery for combat beats."
+      ],
+      "references": [],
+      "references_expanded": []
+    },
+    {
+      "id": "PR-036",
+      "title": "Performance pass: culling, LOD tuning, budgets, and hot-path cleanup",
+      "lane": "Optimization",
+      "depends_on": [
+        "PR-034",
+        "PR-035"
+      ],
+      "crates": [
+        "wr_render_scene",
+        "wr_render_wgpu",
+        "wr_world_gen",
+        "wr_procgeo",
+        "wr_telemetry"
+      ],
+      "scope": "Make the vertical slice reliably hit the target envelope on the dev machine.",
+      "requirements": [
+        "Tune draw call counts, instance submission, mesh LOD thresholds, shadow caster selection, and update frequencies.",
+        "Add frustum/distance culling and any cheap CPU-side visibility filters needed for the static world.",
+        "Document frame budgets and fail the performance gate when budgets regress."
+      ],
+      "acceptance_criteria": [
+        "Canonical traversal and duel scenarios meet the 1080p60 target on the Mac dev machine in release mode, or the gap is quantified with a documented cut plan.",
+        "Performance reports include per-pass breakdowns.",
+        "Visual quality regressions from optimization work are caught by capture tests."
+      ],
+      "tests": [
+        "Criterion or custom frame-time benchmarks.",
+        "Integrated performance gate scenarios.",
+        "Visual regression checks on optimized vs baseline captures."
+      ],
+      "references": [
+        "criterion"
+      ],
+      "references_expanded": [
+        {
+          "title": "Criterion.rs",
+          "url": "https://docs.rs/criterion/latest/criterion/",
+          "why": "Statistics-driven performance regression testing.",
+          "key": "criterion"
+        }
+      ]
+    },
+    {
+      "id": "PR-037",
+      "title": "Regression lock, seed pack, release checklist, and autonomous operating manual",
+      "lane": "Release",
+      "depends_on": [
+        "PR-036",
+        "PR-035",
+        "PR-032",
+        "PR-033"
+      ],
+      "crates": [
+        "docs",
+        "wr_tools_harness",
+        "apps/wr_client",
+        "apps/wr_headless",
+        "apps/wr_agentd"
+      ],
+      "scope": "Freeze the v0 slice into something an autonomous agent can keep evolving without wrecking it.",
+      "requirements": [
+        "Check in canonical seed packs, tweak packs, camera packs, duel scenarios, and replay bundles.",
+        "Write the agent operating manual: allowed commands, expected artifacts, escalation path on failures, and how to cut new baselines.",
+        "Add a release checklist and regression matrix."
+      ],
+      "acceptance_criteria": [
+        "A clean machine can build the project, run verify, generate the world, produce lookdev captures, and complete the duel smoke scenario by following docs only.",
+        "Baseline artifacts exist for forest traversal and duel scenarios.",
+        "The agent manual explains how to add new PRs without violating crate ownership and integration rules."
+      ],
+      "tests": [
+        "Fresh-clone build-and-verify test.",
+        "Artifact presence tests for baseline packs.",
+        "Docs smoke check through scripted commands."
+      ],
+      "references": [],
+      "references_expanded": []
+    }
+  ]
+}

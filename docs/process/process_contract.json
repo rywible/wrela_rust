@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "bootstrap": {
+    "default_next_task_id": "PR-000",
+    "required_paths": [
+      "AGENTS.md",
+      "README.md",
+      "roadmap/wrela_v0_pr_backlog.json",
+      "roadmap/wrela_v0_rust_project_plan.md",
+      "roadmap/pending_tasks",
+      "roadmap/completed_tasks",
+      "docs/process/TRIAGE_GUIDELINES.md",
+      "docs/process/CODE_REVIEW_GUIDELINES.md",
+      "docs/process/process_contract.json",
+      "docs/process/validate_process_contract.py",
+      ".github/ISSUE_TEMPLATE",
+      ".github/PULL_REQUEST_TEMPLATE.md"
+    ]
+  },
+  "issue_templates": {
+    "directory": ".github/ISSUE_TEMPLATE",
+    "forbidden_legacy_directory": ".github/ISSUES_TEMPLATE",
+    "required_files": [
+      ".github/ISSUE_TEMPLATE/config.yml",
+      ".github/ISSUE_TEMPLATE/roadmap_task.yml",
+      ".github/ISSUE_TEMPLATE/bug_regression.yml",
+      ".github/ISSUE_TEMPLATE/lookdev_combat_tuning.yml",
+      ".github/ISSUE_TEMPLATE/decision_adr.yml"
+    ]
+  },
+  "backlog": {
+    "path": "roadmap/wrela_v0_pr_backlog.json",
+    "pr_id_pattern": "^PR-[0-9]{3}$",
+    "task_filename_pattern": "^(PR-[0-9]{3})(-.+)?\\.md$",
+    "pending_dir": "roadmap/pending_tasks",
+    "completed_dir": "roadmap/completed_tasks"
+  },
+  "content_rules": {
+    "forbidden_strings": [
+      ".github/ISSUES_TEMPLATE"
+    ],
+    "files_checked_for_forbidden_strings": [
+      "AGENTS.md",
+      "README.md",
+      "docs/process/TRIAGE_GUIDELINES.md",
+      "docs/process/CODE_REVIEW_GUIDELINES.md"
+    ]
+  }
+}

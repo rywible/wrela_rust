@@ -1,0 +1,162 @@
+name: Roadmap task
+description: Create a narrowly scoped, independently mergeable autonomous task aligned to the roadmap.
+title: "[TASK] <task-id>: <short title>"
+labels: ["task", "autonomous"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This repository is autonomous-first.
+
+        Keep the task narrow. Keep it mergeable. Keep it inside v0 scope.
+
+        Use this form for roadmap work, implementation follow-ups, and infra tasks that should eventually land as a single PR. If the work widens scope, changes architecture boundaries, or asks for an exception to `AGENTS.md`, open a decision / ADR issue instead.
+
+  - type: textarea
+    id: task_metadata
+    attributes:
+      label: Task metadata
+      description: Keep keys stable. Use `none`, `[]`, or `N/A` where needed.
+      render: yaml
+      value: |
+        task_id:
+        task_title:
+        task_source: roadmap|human|follow-up
+        parent_issue:
+        depends_on: []
+        blocked_by: []
+        unblocks: []
+        task_kind: feature|refactor|infra|docs|perf|baseline-update|bugfix|spike
+        crate_scope: []
+        app_scope: []
+        affects:
+          determinism: no
+          performance: no
+          replay: no
+          tuning: no
+          serialization_schema: no
+          visuals: no
+          combat_feel: no
+          baselines: no
+          docs_contract: no
+        requires_human_taste_review: no
+        canonical_seed:
+        canonical_scenarios: []
+        tweak_pack:
+        scope_lock_exception: none
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem_statement
+    attributes:
+      label: Problem statement
+      description: What problem is this task solving right now? Why does it matter in the dependency graph?
+      placeholder: |
+        Example:
+        We need deterministic sub-seed derivation before world generation and scenario replay can share the same seeded contracts.
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: Spell out the smallest mergeable slice.
+      value: |
+        In scope:
+        -
+
+        Explicitly out of scope:
+        -
+
+        Non-goals:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: One bullet per acceptance criterion. Keep each criterion testable.
+      placeholder: |
+        - Deterministic seed derivation returns the same child streams for the same root seed and labels.
+        - Invalid seed labels fail with a typed error.
+        - A headless test proves stable serialization of the seed manifest.
+    validations:
+      required: true
+
+  - type: textarea
+    id: verification_plan
+    attributes:
+      label: Verification plan
+      description: State the proof before implementation. Manual play is not enough.
+      value: |
+        Tests / proof plan:
+        -
+
+        Commands expected:
+        ```bash
+        cargo fmt --check
+        cargo clippy --workspace --all-targets -- -D warnings
+        cargo xtask verify
+        ```
+
+        Additional task-specific commands:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: artifact_expectations
+    attributes:
+      label: Expected artifacts and evidence
+      description: Report paths, scenario names, captures, baselines, replay traces, or benchmark outputs expected when this task is done.
+      value: |
+        Artifacts:
+        -
+
+        Evidence map:
+        - AC -> proof type -> artifact/test path
+    validations:
+      required: true
+
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and invariants
+      description: Call out any invariants this task must preserve.
+      placeholder: |
+        - Must not change replay file format.
+        - Must not widen crate ownership beyond `wr_world_seed` and `wr_core`.
+        - Must remain deterministic from root seed + label.
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: Risks, ambiguities, and dependencies
+      description: What could still go wrong? What follow-up issues might this create?
+      placeholder: |
+        Risks:
+        -
+
+        Ambiguities:
+        -
+
+        Follow-up candidates:
+        -
+
+  - type: checkboxes
+    id: discipline_checks
+    attributes:
+      label: Discipline checks
+      options:
+        - label: This issue describes a single mergeable unit of work.
+          required: true
+        - label: This issue stays inside the locked v0 scope, or it explicitly requests a scope exception.
+          required: true
+        - label: Success can be proven with tests, replays, captures, reports, or benchmarks instead of manual play alone.
+          required: true
+        - label: The expected PR can stay mostly inside the listed crates/apps and should require minimal merge conflict risk.
+          required: true

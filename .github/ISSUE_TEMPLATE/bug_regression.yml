@@ -1,0 +1,147 @@
+name: Bug / regression
+description: Report a deterministic failure, runtime bug, perf regression, or verification break in the autonomous build loop.
+title: "[BUG] <component>: <symptom>"
+labels: ["bug", "autonomous"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when something that should work no longer works, or when a canonical scenario, baseline, replay, or performance budget regresses.
+
+        A good bug report in this repo is reproducible. Include the seed, scenario, tweak pack, artifact paths, and the exact verification command that exposed the problem.
+
+  - type: textarea
+    id: bug_metadata
+    attributes:
+      label: Bug metadata
+      description: Keep keys stable. Use `unknown`, `none`, or `[]` where needed.
+      render: yaml
+      value: |
+        bug_id:
+        discovered_via: ci|scenario|capture|benchmark|manual_play|human_review|other
+        severity: blocker|high|medium|low
+        regression: yes|no|unknown
+        first_bad_pr:
+        first_bad_commit:
+        suspected_task_id:
+        crate_scope: []
+        app_scope: []
+        affects:
+          determinism: unknown
+          performance: unknown
+          replay: unknown
+          tuning: unknown
+          serialization_schema: unknown
+          visuals: unknown
+          combat_feel: unknown
+          baselines: unknown
+          docs_contract: no
+        canonical_seed:
+        canonical_scenarios: []
+        tweak_pack:
+        platform:
+        render_backend:
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Symptom summary
+      description: One tight paragraph. What broke?
+      placeholder: |
+        Example:
+        The `forest_duel_intro` scenario now diverges after 312 frames on the M4 client path. The same replay stays stable in headless mode. The frame hash mismatch starts after a new cloth update path enters the render extraction schedule.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected vs actual
+      value: |
+        Expected:
+        -
+
+        Actual:
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Include exact commands, scenario names, seeds, and environment details.
+      value: |
+        1.
+        2.
+        3.
+
+        Commands:
+        ```bash
+        cargo xtask verify
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence and artifacts
+      description: Link report paths, replay traces, captures, logs, benchmark outputs, or failing test names.
+      value: |
+        Evidence:
+        - failing test / scenario:
+        - artifact path:
+        - report path:
+        - screenshot / video path:
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope_of_damage
+    attributes:
+      label: Scope of damage
+      description: What invariants or acceptance criteria are now violated?
+      placeholder: |
+        - Replay determinism is broken for canonical scenario `forest_duel_intro`.
+        - Frame time exceeds the hero-scene budget on M4.
+        - Baseline image diff exceeds threshold in late-afternoon capture set.
+
+  - type: textarea
+    id: suspected_cause
+    attributes:
+      label: Suspected cause and likely fix boundary
+      description: If you know it. Keep this bounded. Do not turn the bug report into a rewrite request.
+      placeholder: |
+        Suspected cause:
+        -
+
+        Likely fix boundary:
+        - `wr_actor_wraith`
+        - `wr_render_scene`
+
+  - type: textarea
+    id: exit_criteria
+    attributes:
+      label: Exit criteria
+      description: What must be true for this bug to count as fixed?
+      value: |
+        -
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: bug_checks
+    attributes:
+      label: Repro quality checks
+      options:
+        - label: I included a seed or stated why no seed applies.
+          required: true
+        - label: I included an exact failing scenario, test, or command.
+          required: true
+        - label: I attached artifact paths or named the missing artifact that should exist.
+          required: true
+        - label: I described the smallest visible failure instead of a vague larger complaint.
+          required: true

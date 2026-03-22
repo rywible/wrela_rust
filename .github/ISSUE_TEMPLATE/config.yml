@@ -1,0 +1,13 @@
+# GitHub issue template configuration for the autonomous-first Wrela v0 repo.
+#
+# Notes:
+# - Blank issues are disabled on purpose. The forms are part of the operating contract.
+# - If you want contact links in the issue chooser, add repository URLs here after the repo exists.
+#   Example:
+#   contact_links:
+#     - name: AGENTS.md
+#       url: https://github.com/<ORG>/<REPO>/blob/main/AGENTS.md
+#       about: Read the repo rules and scope lock before opening work.
+#
+blank_issues_enabled: false
+contact_links: []
