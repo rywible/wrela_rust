@@ -4,6 +4,24 @@ This file governs autonomous and human work in this repository. Treat every **MU
 
 This repository is an autonomous-first build experiment. That changes the rules. The codebase must be written so an agent can build it, test it, tune it, replay it, capture it, and explain its changes without guessing.
 
+## Fast Path Checklist
+
+If you only remember one part of this file, remember this checklist.
+
+For any implementation task, the default end-to-end flow is:
+
+1. Start from a named task and choose the earliest unblocked dependency-correct item.
+2. Create or switch to a dedicated task branch before making implementation changes.
+3. Land the smallest mergeable change inside the narrowest crate boundary.
+4. Add or update tests, reports, baselines, and docs that make the change machine-verifiable.
+5. Run the strongest verification that actually exists for the current repo state.
+6. Push the branch and open or update the GitHub PR with the required PR packet.
+7. If the task is complete, move its task file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in that same PR.
+8. Wait for automated review after each push, address actionable feedback, rerun verification, and push again if needed.
+9. Do not treat local code plus local green checks as task completion unless a human explicitly asked for local-only work.
+
+Local implementation is progress. A task is normally complete only when the GitHub PR exists and the review loop has been observed or explicitly waived by a human.
+
 ## 0. Current Repository Reality
 
 This file describes both the **target runtime** and the **current bootstrap repo**. Agents MUST preserve the aspirational end-state while also acting truthfully about what exists today.
@@ -293,6 +311,8 @@ For every task, follow this flow.
 7. Produce a PR packet with verification instructions and artifact locations.
 8. If blocked, escalate with a decision memo instead of widening scope.
 
+This flow is not complete at local green status. Unless a human explicitly requests local-only work, implementation tasks continue through the GitHub PR and review loop in Section 11.
+
 ### 10.1 Bootstrap-phase workflow
 
 When the active task happens before the full workspace and harness exist, follow the same discipline with repo-accurate proof.
@@ -311,11 +331,13 @@ If the PR completes a roadmap task represented by a file in `roadmap/pending_tas
 
 Autonomous implementation work MUST go through a dedicated task branch and a GitHub pull request unless a human explicitly asks for a local-only change.
 
+- Create or switch to the task branch before implementation work, not after local verification.
 - Each new implementation task SHOULD start from its own branch.
 - Branches SHOULD use the task ID when one exists and SHOULD stay scoped to that task.
 - Do not stack unrelated task work on the same branch.
 - Do not merge task work directly from the default branch without opening a GitHub PR.
 - The GitHub PR is part of the task workflow, not an optional afterthought.
+- Do not mark a task complete just because the code compiles or local tests pass. The PR must exist unless the human explicitly waived that requirement.
 
 ### 11.1 Required PR contents
 
@@ -358,6 +380,8 @@ A PR must not be marked complete unless all applicable gates pass:
 ### 11.4 Automated review wait and response loop
 
 When automated code review is available on GitHub, autonomous agents MUST incorporate it before merge unless a human explicitly waives that step.
+
+Local verification is necessary but insufficient. The task remains in progress until this review loop is completed or explicitly waived by a human.
 
 - Push the branch when the task work is ready for review, then open or update the GitHub PR.
 - After each push, wait a short review window before merge so automated review can arrive. Target wait: 5 to 10 minutes.

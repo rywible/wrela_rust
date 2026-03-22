@@ -64,6 +64,11 @@ publish = false
     wr_tools_harness = { path = "crates/wr_tools_harness" }
     wr_telemetry = { path = "crates/wr_telemetry" }
     wr_game = { path = "crates/wr_game" }
+    serde = { version = "1.0.228", features = ["derive"] }
+    serde_json = "1.0.149"
+    schemars = { version = "1.2.1", features = ["derive"] }
+    jsonschema = "0.45.0"
+    proptest = "1.10.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
