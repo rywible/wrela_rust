@@ -11,6 +11,7 @@ All bootstrap harness payloads use `wr_harness/v1`.
 The v1 contract covers these JSON-schema-backed payloads:
 
 - `ScenarioRequest`
+- `ScenarioExecutionReport`
 - `CaptureRequest`
 - `LookdevSweepRequest`
 - `DuelReport`
@@ -27,6 +28,8 @@ The bootstrap path contract is:
 - terminal bundle: `reports/harness/<command>/<run_id>/terminal_report.json`
 
 Later tasks may add more files inside the same run directory, but they should preserve this root layout so agents can locate terminal results deterministically.
+
+`PR-003` makes `run-scenario` real. Its terminal report is now a `ScenarioExecutionReport`, and canonical scenarios are authored in RON under `scenarios/`.
 
 The verification stack now also writes stable per-run helper artifacts under the same directory, including:
 
@@ -57,7 +60,20 @@ The v1 failure taxonomy is:
 - seed label and value
 - stable artifact paths
 
-This command is intentionally narrow. Scenario execution, capture, lookdev, replay, and perf surfaces land in later roadmap tasks.
+This command is intentionally narrow. Capture, lookdev, replay, and perf surfaces land in later roadmap tasks.
+
+## Headless scenario command
+
+`wr_headless --scenario <path>` and `cargo xtask run-scenario <path>` now load a RON scenario, execute a deterministic fixed-step run, and emit `reports/harness/run-scenario/<run_id>/terminal_report.json`.
+
+The report includes:
+
+- scenario identity,
+- seed metadata,
+- step-count metrics,
+- per-assertion results,
+- stable artifact paths,
+- a deterministic hash that ignores timestamp-only metadata churn.
 
 ## Verification command
 

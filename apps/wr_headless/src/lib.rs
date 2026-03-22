@@ -1,6 +1,15 @@
 #![forbid(unsafe_code)]
 
+use std::path::{Path, PathBuf};
+
 use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_game::HeadlessScenarioSummary;
+use wr_telemetry::{PlatformMetadata, RunMetadata, RunTimestamps, SeedInfo, artifact_component};
+use wr_tools_harness::{
+    ArtifactDescriptor, ArtifactLayout, FailureKind, HARNESS_SCHEMA_VERSION, HarnessStatus,
+    ResultEnvelope, ScenarioExecutionMetrics, ScenarioExecutionReport, TERMINAL_REPORT_FILENAME,
+    load_scenario_request_ron, write_json_artifact_at,
+};
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_headless", CrateBoundary::AppShell, true)
@@ -8,4 +17,223 @@ pub const fn init_entrypoint() -> CrateEntryPoint {
 
 pub const fn target_runtime() -> CrateEntryPoint {
     wr_game::init_entrypoint()
+}
+
+pub const RUN_SCENARIO_COMMAND_NAME: &str = "run-scenario";
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadlessRunOutcome {
+    pub terminal_report_path: PathBuf,
+    pub succeeded: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct HeadlessRunOptions {
+    scenario_path: PathBuf,
+    output_root: PathBuf,
+    run_id: Option<String>,
+}
+
+pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
+    match run_scenario_command(&mut args) {
+        Ok(outcome) => {
+            println!("{}", outcome.terminal_report_path.display());
+            if outcome.succeeded { 0 } else { 1 }
+        }
+        Err(error) => {
+            eprintln!("headless scenario runner failed: {error}");
+            1
+        }
+    }
+}
+
+pub fn run_scenario_command(
+    args: impl Iterator<Item = String>,
+) -> Result<HeadlessRunOutcome, String> {
+    let options = HeadlessRunOptions::parse(args)?;
+    execute_run(options)
+}
+
+impl HeadlessRunOptions {
+    fn parse(mut args: impl Iterator<Item = String>) -> Result<Self, String> {
+        let mut scenario_path = None;
+        let mut output_root = PathBuf::from(".");
+        let mut run_id = None;
+
+        while let Some(arg) = args.next() {
+            match arg.as_str() {
+                "--scenario" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| String::from("expected a value after --scenario"))?;
+                    scenario_path = Some(PathBuf::from(value));
+                }
+                "--output-root" => {
+                    let value = args
+                        .next()
+                        .ok_or_else(|| String::from("expected a value after --output-root"))?;
+                    output_root = PathBuf::from(value);
+                }
+                "--run-id" => {
+                    run_id = Some(
+                        args.next()
+                            .ok_or_else(|| String::from("expected a value after --run-id"))?,
+                    );
+                }
+                value if scenario_path.is_none() => {
+                    scenario_path = Some(PathBuf::from(value));
+                }
+                other => {
+                    return Err(format!(
+                        "unsupported argument `{other}` for wr_headless; supported flags: --scenario, --output-root, --run-id"
+                    ));
+                }
+            }
+        }
+
+        let scenario_path = scenario_path
+            .ok_or_else(|| String::from("missing scenario path; pass --scenario <path>"))?;
+
+        Ok(Self { scenario_path, output_root, run_id })
+    }
+}
+
+fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String> {
+    let scenario_label = artifact_component(options.scenario_path.to_string_lossy().as_ref());
+    let run_id = options.run_id.unwrap_or_else(|| format!("{scenario_label}-{}", now_unix_ms()));
+    let layout = ArtifactLayout::new(RUN_SCENARIO_COMMAND_NAME, &run_id);
+    let started_at = now_unix_ms();
+    let cwd =
+        std::env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))?;
+    let git_sha = current_git_sha().unwrap_or_else(|_| String::from("<unknown>"));
+
+    let load_result = load_scenario_request_ron(&options.scenario_path);
+    let (seed, scenario_path, summary, notes) = match load_result {
+        Ok(scenario) => {
+            let summary = wr_game::run_headless_scenario(&scenario);
+            (
+                scenario.seed,
+                scenario.scenario_path,
+                summary,
+                Some(vec![format!(
+                    "Scenario source loaded from {}.",
+                    options.scenario_path.display()
+                )]),
+            )
+        }
+        Err(error) => (
+            SeedInfo {
+                label: "unknown".to_owned(),
+                value_hex: "0x0000000000000000".to_owned(),
+                stream: Some("load_failure".to_owned()),
+            },
+            options.scenario_path.to_string_lossy().into_owned(),
+            load_failure_summary(error.to_string()),
+            None,
+        ),
+    };
+
+    let completed_at = now_unix_ms();
+    let metadata = RunMetadata::new(
+        RUN_SCENARIO_COMMAND_NAME,
+        &run_id,
+        git_sha,
+        cwd.display().to_string(),
+        PlatformMetadata::current(),
+        RunTimestamps { started_at_unix_ms: started_at, completed_at_unix_ms: completed_at },
+    );
+
+    let mut artifacts = vec![ArtifactDescriptor {
+        role: "terminal_report".to_owned(),
+        path: layout.terminal_report_path_string(),
+        media_type: "application/json".to_owned(),
+    }];
+    if Path::new(&scenario_path).exists() {
+        artifacts.push(ArtifactDescriptor {
+            role: "scenario_source".to_owned(),
+            path: scenario_path.clone(),
+            media_type: "text/ron".to_owned(),
+        });
+    }
+
+    let report = ScenarioExecutionReport {
+        schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
+        metadata,
+        seed,
+        scenario_path,
+        result: summary.result.clone(),
+        metrics: summary.metrics,
+        determinism_hash: summary.determinism_hash,
+        assertions: summary.assertions,
+        artifacts,
+        notes: merge_notes(summary.notes, notes),
+    };
+
+    let terminal_report_path =
+        write_json_artifact_at(&options.output_root, &layout, TERMINAL_REPORT_FILENAME, &report)
+            .map_err(|error| format!("failed to write terminal report: {error}"))?;
+
+    Ok(HeadlessRunOutcome {
+        terminal_report_path,
+        succeeded: report.result.status == HarnessStatus::Passed,
+    })
+}
+
+fn load_failure_summary(details: String) -> HeadlessScenarioSummary {
+    HeadlessScenarioSummary {
+        result: ResultEnvelope {
+            status: HarnessStatus::Failed,
+            summary: "Scenario could not be loaded.".to_owned(),
+            failure_kind: Some(FailureKind::ScenarioFailed),
+            details: Some(details),
+        },
+        metrics: ScenarioExecutionMetrics {
+            frames_requested: 0,
+            frames_simulated: 0,
+            simulation_rate_hz: 0,
+            spawned_actor_count: 0,
+            scripted_input_count: 0,
+            applied_input_count: 0,
+        },
+        assertions: Vec::new(),
+        determinism_hash: "0x0000000000000000".to_owned(),
+        notes: Some(vec![
+            "A terminal report was still emitted so automation can classify the failure."
+                .to_owned(),
+        ]),
+    }
+}
+
+fn merge_notes(
+    primary: Option<Vec<String>>,
+    secondary: Option<Vec<String>>,
+) -> Option<Vec<String>> {
+    let mut notes = primary.unwrap_or_default();
+    notes.extend(secondary.unwrap_or_default());
+
+    if notes.is_empty() { None } else { Some(notes) }
+}
+
+fn now_unix_ms() -> u64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_millis() as u64)
+        .unwrap_or(0)
+}
+
+fn current_git_sha() -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .map_err(|error| format!("failed to run git rev-parse HEAD: {error}"))?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout)
+            .map(|sha| sha.trim().to_owned())
+            .map_err(|error| format!("git rev-parse returned non-utf8 output: {error}"))
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
+    }
 }

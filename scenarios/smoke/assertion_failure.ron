@@ -1,0 +1,28 @@
+(
+    schema_version: "wr_harness/v1",
+    scenario_path: "scenarios/smoke/assertion_failure.ron",
+    simulation_rate_hz: 60,
+    fixed_steps: 4,
+    seed: (
+        label: "hero_forest",
+        value_hex: "0xDEADBEEF",
+        stream: Some("smoke_failure"),
+    ),
+    spawned_actors: [
+        (
+            actor_id: "player",
+            actor_kind: "player_sword",
+            seed_stream: Some("player"),
+        ),
+    ],
+    scripted_inputs: [],
+    assertions: [
+        (
+            frame: Some(0),
+            metric: "world.actor_count",
+            comparator: "eq",
+            expected: 99.0,
+            tolerance: Some(0.0),
+        ),
+    ],
+)

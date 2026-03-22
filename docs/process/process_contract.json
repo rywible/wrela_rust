@@ -1,7 +1,7 @@
 {
   "version": 1,
   "bootstrap": {
-    "default_next_task_id": "PR-003",
+    "default_next_task_id": "PR-004",
     "required_paths": [
       "AGENTS.md",
       "README.md",

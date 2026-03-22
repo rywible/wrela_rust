@@ -1,0 +1,61 @@
+(
+    schema_version: "wr_harness/v1",
+    scenario_path: "scenarios/smoke/startup.ron",
+    simulation_rate_hz: 60,
+    fixed_steps: 16,
+    seed: (
+        label: "hero_forest",
+        value_hex: "0xDEADBEEF",
+        stream: Some("smoke_startup"),
+    ),
+    spawned_actors: [
+        (
+            actor_id: "player",
+            actor_kind: "player_sword",
+            seed_stream: Some("player"),
+        ),
+        (
+            actor_id: "wraith",
+            actor_kind: "wraith",
+            seed_stream: Some("enemy"),
+        ),
+    ],
+    scripted_inputs: [
+        (
+            frame: 2,
+            action: "strafe_right",
+            state: "pressed",
+        ),
+        (
+            frame: 6,
+            action: "strafe_right",
+            state: "released",
+        ),
+        (
+            frame: 8,
+            action: "light_attack",
+            state: "pressed",
+        ),
+        (
+            frame: 9,
+            action: "light_attack",
+            state: "released",
+        ),
+    ],
+    assertions: [
+        (
+            frame: Some(8),
+            metric: "world.actor_count",
+            comparator: "eq",
+            expected: 2.0,
+            tolerance: Some(0.0),
+        ),
+        (
+            frame: Some(15),
+            metric: "world.frames_simulated",
+            comparator: "eq",
+            expected: 16.0,
+            tolerance: Some(0.0),
+        ),
+    ],
+)

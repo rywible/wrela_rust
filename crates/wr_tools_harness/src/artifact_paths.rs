@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+
 use crate::{HarnessError, TestResultBundle};
 
 pub const HARNESS_REPORTS_ROOT: &str = "reports/harness";
@@ -49,6 +51,32 @@ pub fn write_test_result_bundle_at(
 
     fs::create_dir_all(parent)?;
     let mut json = serde_json::to_vec_pretty(bundle)?;
+    json.push(b'\n');
+    fs::write(&path, json)?;
+    Ok(path)
+}
+
+pub fn write_json_artifact<T: Serialize>(
+    layout: &ArtifactLayout,
+    filename: &str,
+    artifact: &T,
+) -> Result<PathBuf, HarnessError> {
+    write_json_artifact_at(Path::new("."), layout, filename, artifact)
+}
+
+pub fn write_json_artifact_at<T: Serialize>(
+    root: &Path,
+    layout: &ArtifactLayout,
+    filename: &str,
+    artifact: &T,
+) -> Result<PathBuf, HarnessError> {
+    let path = root.join(layout.run_directory()).join(filename);
+    let parent = path
+        .parent()
+        .ok_or_else(|| HarnessError::invalid_path(path.to_string_lossy().into_owned()))?;
+
+    fs::create_dir_all(parent)?;
+    let mut json = serde_json::to_vec_pretty(artifact)?;
     json.push(b'\n');
     fs::write(&path, json)?;
     Ok(path)

@@ -1,4 +1,5 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::Path;
 
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
@@ -10,12 +11,18 @@ pub const HARNESS_SCHEMA_VERSION: &str = "wr_harness/v1";
 pub enum HarnessError {
     Io(std::io::Error),
     Json(serde_json::Error),
+    Ron(ron::error::SpannedError),
     InvalidPath { path: String },
+    InvalidScenario { reason: String },
 }
 
 impl HarnessError {
     pub fn invalid_path(path: String) -> Self {
         Self::InvalidPath { path }
+    }
+
+    pub fn invalid_scenario(reason: impl Into<String>) -> Self {
+        Self::InvalidScenario { reason: reason.into() }
     }
 }
 
@@ -24,7 +31,9 @@ impl std::fmt::Display for HarnessError {
         match self {
             Self::Io(error) => write!(f, "i/o error: {error}"),
             Self::Json(error) => write!(f, "json serialization error: {error}"),
+            Self::Ron(error) => write!(f, "ron serialization error: {error}"),
             Self::InvalidPath { path } => write!(f, "invalid artifact path: {path}"),
+            Self::InvalidScenario { reason } => write!(f, "invalid scenario: {reason}"),
         }
     }
 }
@@ -40,6 +49,12 @@ impl From<std::io::Error> for HarnessError {
 impl From<serde_json::Error> for HarnessError {
     fn from(value: serde_json::Error) -> Self {
         Self::Json(value)
+    }
+}
+
+impl From<ron::error::SpannedError> for HarnessError {
+    fn from(value: ron::error::SpannedError) -> Self {
+        Self::Ron(value)
     }
 }
 
@@ -85,8 +100,18 @@ pub struct ScriptedInput {
     pub state: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct ScenarioActorSpawn {
+    pub actor_id: String,
+    pub actor_kind: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed_stream: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 pub struct ScenarioAssertion {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame: Option<u32>,
     pub metric: String,
     pub comparator: String,
     pub expected: f32,
@@ -102,9 +127,55 @@ pub struct ScenarioRequest {
     pub fixed_steps: u32,
     pub seed: SeedInfo,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spawned_actors: Vec<ScenarioActorSpawn>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scripted_inputs: Vec<ScriptedInput>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub assertions: Vec<ScenarioAssertion>,
+}
+
+impl ScenarioRequest {
+    pub fn validate(&self) -> Result<(), HarnessError> {
+        if self.schema_version != HARNESS_SCHEMA_VERSION {
+            return Err(HarnessError::invalid_scenario(format!(
+                "expected schema version `{HARNESS_SCHEMA_VERSION}`, found `{}`",
+                self.schema_version
+            )));
+        }
+
+        if self.simulation_rate_hz == 0 {
+            return Err(HarnessError::invalid_scenario(
+                "simulation_rate_hz must be greater than zero",
+            ));
+        }
+
+        if self.fixed_steps == 0 {
+            return Err(HarnessError::invalid_scenario("fixed_steps must be greater than zero"));
+        }
+
+        let mut actor_ids = BTreeSet::new();
+        for actor in &self.spawned_actors {
+            if !actor_ids.insert(actor.actor_id.clone()) {
+                return Err(HarnessError::invalid_scenario(format!(
+                    "duplicate actor_id `{}`",
+                    actor.actor_id
+                )));
+            }
+        }
+
+        for assertion in &self.assertions {
+            if let Some(frame) = assertion.frame
+                && frame >= self.fixed_steps
+            {
+                return Err(HarnessError::invalid_scenario(format!(
+                    "assertion frame {frame} must be below fixed_steps {}",
+                    self.fixed_steps
+                )));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -152,6 +223,48 @@ pub struct DuelReport {
     pub scenario_path: String,
     pub result: ResultEnvelope,
     pub metrics: DuelMetrics,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub artifacts: Vec<ArtifactDescriptor>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub notes: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ScenarioExecutionMetrics {
+    pub frames_requested: u32,
+    pub frames_simulated: u32,
+    pub simulation_rate_hz: u32,
+    pub spawned_actor_count: u32,
+    pub scripted_input_count: u32,
+    pub applied_input_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ScenarioAssertionResult {
+    pub metric: String,
+    pub comparator: String,
+    pub frame: u32,
+    pub expected: f32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub actual: Option<f32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tolerance: Option<f32>,
+    pub passed: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct ScenarioExecutionReport {
+    pub schema_version: String,
+    pub metadata: RunMetadata,
+    pub seed: SeedInfo,
+    pub scenario_path: String,
+    pub result: ResultEnvelope,
+    pub metrics: ScenarioExecutionMetrics,
+    pub determinism_hash: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub assertions: Vec<ScenarioAssertionResult>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub artifacts: Vec<ArtifactDescriptor>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -248,12 +361,24 @@ pub fn canonical_noop_test_result_bundle(
     }
 }
 
+pub fn load_scenario_request_ron(path: impl AsRef<Path>) -> Result<ScenarioRequest, HarnessError> {
+    let source = std::fs::read_to_string(path.as_ref())?;
+    let scenario: ScenarioRequest = ron::de::from_str(&source)?;
+    scenario.validate()?;
+    Ok(scenario)
+}
+
 pub fn init_schema_catalog_json() -> BTreeMap<String, serde_json::Value> {
     let schemas = [
         (
             "scenario_request",
             serde_json::to_value(schema_for!(ScenarioRequest))
                 .expect("scenario request schema should serialize"),
+        ),
+        (
+            "scenario_execution_report",
+            serde_json::to_value(schema_for!(ScenarioExecutionReport))
+                .expect("scenario execution report schema should serialize"),
         ),
         (
             "capture_request",
@@ -340,17 +465,72 @@ mod tests {
             simulation_rate_hz: 60,
             fixed_steps: 16,
             seed: canonical_seed(),
+            spawned_actors: vec![
+                ScenarioActorSpawn {
+                    actor_id: "player".to_owned(),
+                    actor_kind: "player_sword".to_owned(),
+                    seed_stream: Some("player".to_owned()),
+                },
+                ScenarioActorSpawn {
+                    actor_id: "wraith".to_owned(),
+                    actor_kind: "wraith".to_owned(),
+                    seed_stream: Some("enemy".to_owned()),
+                },
+            ],
             scripted_inputs: vec![ScriptedInput {
                 frame: 4,
                 action: "move_forward".to_owned(),
                 state: "pressed".to_owned(),
             }],
             assertions: vec![ScenarioAssertion {
+                frame: Some(15),
                 metric: "startup.frame_count".to_owned(),
                 comparator: "eq".to_owned(),
                 expected: 16.0,
                 tolerance: Some(0.0),
             }],
+        }
+    }
+
+    fn canonical_scenario_execution_report() -> ScenarioExecutionReport {
+        ScenarioExecutionReport {
+            schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
+            metadata: canonical_metadata(),
+            seed: canonical_seed(),
+            scenario_path: "scenarios/smoke/startup.ron".to_owned(),
+            result: ResultEnvelope {
+                status: HarnessStatus::Passed,
+                summary: "Scenario completed 16 fixed steps without assertion failures.".to_owned(),
+                failure_kind: None,
+                details: None,
+            },
+            metrics: ScenarioExecutionMetrics {
+                frames_requested: 16,
+                frames_simulated: 16,
+                simulation_rate_hz: 60,
+                spawned_actor_count: 2,
+                scripted_input_count: 1,
+                applied_input_count: 1,
+            },
+            determinism_hash: "0xCBF29CE484222325".to_owned(),
+            assertions: vec![ScenarioAssertionResult {
+                metric: "world.frames_simulated".to_owned(),
+                comparator: "eq".to_owned(),
+                frame: 15,
+                expected: 16.0,
+                actual: Some(16.0),
+                tolerance: Some(0.0),
+                passed: true,
+                details: None,
+            }],
+            artifacts: vec![ArtifactDescriptor {
+                role: "terminal_report".to_owned(),
+                path: "reports/harness/run-scenario/startup/terminal_report.json".to_owned(),
+                media_type: "application/json".to_owned(),
+            }],
+            notes: Some(vec![
+                "Scenario files are authored in RON and validated before execution.".to_owned(),
+            ]),
         }
     }
 
@@ -447,6 +627,7 @@ mod tests {
     #[test]
     fn contract_examples_roundtrip_through_json() {
         let scenario = canonical_scenario_request();
+        let scenario_report = canonical_scenario_execution_report();
         let capture = canonical_capture_request();
         let lookdev = canonical_lookdev_sweep_request();
         let duel = canonical_duel_report();
@@ -454,6 +635,8 @@ mod tests {
         let bundle = canonical_test_result_bundle();
 
         let scenario_json = serde_json::to_string(&scenario).expect("scenario serializes");
+        let scenario_report_json =
+            serde_json::to_string(&scenario_report).expect("scenario report serializes");
         let capture_json = serde_json::to_string(&capture).expect("capture serializes");
         let lookdev_json = serde_json::to_string(&lookdev).expect("lookdev serializes");
         let duel_json = serde_json::to_string(&duel).expect("duel serializes");
@@ -463,6 +646,11 @@ mod tests {
         assert_eq!(
             serde_json::from_str::<ScenarioRequest>(&scenario_json).expect("scenario roundtrips"),
             scenario
+        );
+        assert_eq!(
+            serde_json::from_str::<ScenarioExecutionReport>(&scenario_report_json)
+                .expect("scenario report roundtrips"),
+            scenario_report
         );
         assert_eq!(
             serde_json::from_str::<CaptureRequest>(&capture_json).expect("capture roundtrips"),
@@ -490,6 +678,11 @@ mod tests {
             (
                 "scenario_request".to_owned(),
                 serde_json::to_value(canonical_scenario_request()).expect("scenario fixture"),
+            ),
+            (
+                "scenario_execution_report".to_owned(),
+                serde_json::to_value(canonical_scenario_execution_report())
+                    .expect("scenario report fixture"),
             ),
             (
                 "capture_request".to_owned(),
@@ -533,6 +726,16 @@ mod tests {
             .expect("canonical bundle should serialize");
 
         assert_eq!(actual, expected.trim_end());
+    }
+
+    #[test]
+    fn canonical_scenario_request_roundtrips_through_ron() {
+        let scenario = canonical_scenario_request();
+        let ron = ron::ser::to_string_pretty(&scenario, ron::ser::PrettyConfig::default())
+            .expect("scenario serializes to ron");
+        let reparsed: ScenarioRequest = ron::de::from_str(&ron).expect("scenario reparses");
+
+        assert_eq!(reparsed, scenario);
     }
 
     proptest! {

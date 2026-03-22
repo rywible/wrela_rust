@@ -19,3 +19,9 @@ path = "src/lib.rs"
 [dependencies]
 wr_core.workspace = true
 wr_game.workspace = true
+wr_telemetry.workspace = true
+wr_tools_harness.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tempfile.workspace = true

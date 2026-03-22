@@ -15,3 +15,5 @@ stub = []
 
 [dependencies]
 wr_core.workspace = true
+wr_tools_harness.workspace = true
+wr_world_seed.workspace = true

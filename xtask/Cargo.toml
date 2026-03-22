@@ -18,6 +18,7 @@ path = "src/lib.rs"
 
 [dependencies]
 wr_core.workspace = true
+wr_headless.workspace = true
 wr_telemetry.workspace = true
 wr_tools_harness.workspace = true
 serde.workspace = true

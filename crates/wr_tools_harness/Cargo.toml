@@ -16,6 +16,7 @@ stub = []
 [dependencies]
 wr_core.workspace = true
 wr_telemetry.workspace = true
+ron.workspace = true
 schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true

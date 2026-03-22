@@ -18,7 +18,7 @@ pub const fn init_entrypoint() -> CrateEntryPoint {
 }
 
 pub const fn supported_commands() -> &'static [&'static str] {
-    &["help", "scaffold-status", "noop-harness-report", "verify"]
+    &["help", "scaffold-status", "noop-harness-report", "run-scenario", "verify"]
 }
 
 pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
@@ -49,6 +49,16 @@ pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
             }
             Err(error) => {
                 eprintln!("verification stack failed: {error}");
+                1
+            }
+        },
+        Some("run-scenario") => match wr_headless::run_scenario_command(args) {
+            Ok(outcome) => {
+                println!("{}", outcome.terminal_report_path.display());
+                if outcome.succeeded { 0 } else { 1 }
+            }
+            Err(error) => {
+                eprintln!("scenario runner failed: {error}");
                 1
             }
         },
