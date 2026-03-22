@@ -1,0 +1,35 @@
+---
+source: crates/wr_telemetry/src/verification.rs
+expression: "vec![fmt, nextest]"
+---
+[
+  {
+    "suite_name": "fmt / workspace",
+    "suite_slug": "fmt-workspace",
+    "command": [
+      "cargo",
+      "fmt",
+      "--check"
+    ],
+    "status": "passed",
+    "duration_ms": 24,
+    "stdout_artifact": "reports/harness/verify/demo/fmt-workspace.stdout.log"
+  },
+  {
+    "suite_name": "nextest::workspace",
+    "suite_slug": "nextest-workspace",
+    "command": [
+      "cargo",
+      "nextest",
+      "run",
+      "--workspace",
+      "--profile",
+      "ci"
+    ],
+    "status": "passed",
+    "exit_code": 0,
+    "duration_ms": 231,
+    "stdout_artifact": "reports/harness/verify/demo/nextest-workspace.events.jsonl",
+    "stderr_artifact": "reports/harness/verify/demo/nextest-workspace.stderr.log"
+  }
+]

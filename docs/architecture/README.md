@@ -2,4 +2,6 @@
 
 This directory holds architecture documents that explain how the current repo shape maps to the planned runtime.
 
+- `harness_contract.md` explains the machine-readable harness request/report contract.
+- `verification_stack.md` explains the repo-standard `cargo xtask verify` workflow, artifacts, and toolchain choices.
 - `workspace_scaffold.md` explains the initial crate graph, merge policy, and placeholder entrypoint contract.

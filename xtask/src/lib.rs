@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod verify;
+
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -15,20 +17,18 @@ pub const fn init_entrypoint() -> CrateEntryPoint {
 }
 
 pub const fn supported_commands() -> &'static [&'static str] {
-    &["help", "scaffold-status", "noop-harness-report"]
+    &["help", "scaffold-status", "noop-harness-report", "verify"]
 }
 
 pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
     match args.next().as_deref() {
         None | Some("help") | Some("--help") | Some("-h") => {
-            println!("xtask scaffold only; full task automation lands in later roadmap PRs.");
+            println!("xtask exposes the repo-standard automation entrypoints.");
             println!("available commands: {}", supported_commands().join(", "));
             0
         }
         Some("scaffold-status") => {
-            println!(
-                "workspace scaffold present; PR-001 adds the first harness contract surfaces."
-            );
+            println!("workspace scaffold and verification stack are present.");
             0
         }
         Some("noop-harness-report") => match emit_noop_harness_report(args) {
@@ -38,6 +38,16 @@ pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
             }
             Err(error) => {
                 eprintln!("failed to emit noop harness report: {error}");
+                1
+            }
+        },
+        Some("verify") => match verify::run(args) {
+            Ok(path) => {
+                println!("{}", path.display());
+                0
+            }
+            Err(error) => {
+                eprintln!("verification stack failed: {error}");
                 1
             }
         },

@@ -1,13 +1,15 @@
 {
   "version": 1,
   "bootstrap": {
-    "default_next_task_id": "PR-001",
+    "default_next_task_id": "PR-003",
     "required_paths": [
       "AGENTS.md",
       "README.md",
       "Cargo.toml",
       "rust-toolchain.toml",
       ".cargo/config.toml",
+      ".config/insta.yaml",
+      ".config/nextest.toml",
       "clippy.toml",
       "rustfmt.toml",
       ".github/workflows/ci.yml",
@@ -16,7 +18,9 @@
       "roadmap/pending_tasks",
       "roadmap/completed_tasks",
       "docs/adr/ADR-000-scope-lock.md",
+      "docs/architecture/harness_contract.md",
       "docs/architecture/workspace_scaffold.md",
+      "docs/architecture/verification_stack.md",
       "docs/process/TRIAGE_GUIDELINES.md",
       "docs/process/CODE_REVIEW_GUIDELINES.md",
       "docs/process/process_contract.json",

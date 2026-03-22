@@ -1,6 +1,6 @@
 # PR-002 - Test runner, reproducibility, and verification stack
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Harness
 - Depends on: PR-000, PR-001
