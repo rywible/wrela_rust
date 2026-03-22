@@ -395,6 +395,28 @@ Local verification is necessary but insufficient. The task remains in progress u
 - If no automated review arrives after the wait window, say so explicitly before merge rather than silently assuming approval.
 - Human review and taste checkpoints still take precedence where this document already requires them.
 
+### 11.4.1 Local Claude review fallback
+
+When GitHub-side automated review is unavailable, delayed, or unreliable, agents SHOULD run a local Claude Code review before merge and record the result on the PR.
+
+- Use the repository review policy as input, not a generic review prompt. Pass `docs/process/CODE_REVIEW_GUIDELINES.md` explicitly in the prompt.
+- Prefer reviewing the current branch against `origin/main` from the repo root.
+- Preferred command shape:
+
+```bash
+claude --permission-mode bypassPermissions --dangerously-skip-permissions -p \
+"Use docs/process/CODE_REVIEW_GUIDELINES.md as the review policy for this repository.
+Review the current git branch against origin/main.
+Focus on bugs, behavioral regressions, determinism risks, missing tests, schema or contract gaps, and process violations.
+Return findings first, ordered by severity, with file references where possible.
+If there are no findings, say that explicitly and mention residual risks."
+```
+
+- Empirical note for this repo: direct branch review works better in non-interactive mode than `--from-pr` or very large diff-fed prompts, which may stall.
+- Wait up to about 2 minutes for the local Claude review to return before treating the run as hung.
+- If the run hangs, kill it, note that in the PR, and do not claim the local Claude review succeeded.
+- If the local Claude review returns findings, address actionable ones, rerun the relevant verification, push the follow-up commit, and summarize what was fixed versus deferred on the PR.
+
 ### 11.5 Bootstrap verification exception
 
 Before the workspace scaffold and its automation surface exist, some normal gates are unavailable. That is only acceptable for the earliest bootstrap tasks.
