@@ -261,7 +261,7 @@ For combat, require:
 
 ### 7.7 Local Claude Code review path
 
-When using Claude Code as a local reviewer, do not ask it for a generic code review. Give it this document as the policy and tell it to review the current branch against `origin/main`.
+When using Claude Code as a reviewer in this repo, do not ask it for a generic code review. Give it this document as the policy and tell it to review the current branch against `origin/main`.
 
 Preferred invocation from the repo root:
 
@@ -279,7 +279,7 @@ Operational notes:
 - In this repo, direct branch review has been more reliable in non-interactive mode than `claude --from-pr` or very large diff-fed prompts.
 - Give Claude about 2 minutes to complete the review before treating the run as hung.
 - If it hangs, terminate the attempt, record that explicitly on the PR, and do not claim the review happened.
-- If it returns findings, treat them like any other review findings: fix actionable items, rerun verification, push, and summarize the response on the PR.
+- If it returns findings, treat them like any other review findings: fix actionable items, rerun verification, push, rerun Claude on the latest branch state, and summarize the response on the PR.
 
 If the PR says a feel or visual improvement happened but cannot show a packet, block it.
 

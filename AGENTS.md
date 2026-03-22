@@ -17,10 +17,10 @@ For any implementation task, the default end-to-end flow is:
 5. Run the strongest verification that actually exists for the current repo state.
 6. Push the branch and open or update the GitHub PR with the required PR packet.
 7. If the task is complete, move its task file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in that same PR.
-8. Wait for automated review after each push, address actionable feedback, rerun verification, and push again if needed.
+8. Run local Claude Code review against the current branch, address actionable feedback, rerun verification, and push again if needed.
 9. Do not treat local code plus local green checks as task completion unless a human explicitly asked for local-only work.
 
-Local implementation is progress. A task is normally complete only when the GitHub PR exists and the review loop has been observed or explicitly waived by a human.
+Local implementation is progress. A task is normally complete only when the GitHub PR exists and the local Claude review loop has been completed or explicitly waived by a human.
 
 ## 0. Current Repository Reality
 
@@ -377,27 +377,23 @@ A PR must not be marked complete unless all applicable gates pass:
 - relevant scenario or capture commands
 - relevant perf checks for runtime-affecting work
 
-### 11.4 Automated review wait and response loop
+### 11.4 Local Claude review loop
 
-When automated code review is available on GitHub, autonomous agents MUST incorporate it before merge unless a human explicitly waives that step.
+Autonomous agents MUST run local Claude Code review before merge unless a human explicitly waives that step.
 
 Local verification is necessary but insufficient. The task remains in progress until this review loop is completed or explicitly waived by a human.
 
 - Push the branch when the task work is ready for review, then open or update the GitHub PR.
-- After each push, wait a short review window before merge so automated review can arrive. Target wait: 5 to 10 minutes.
-- After the wait window, fetch GitHub review comments, review summaries, reactions, and other machine-generated PR feedback if available.
+- Run Claude from the repo root against the current branch versus `origin/main`, using `docs/process/CODE_REVIEW_GUIDELINES.md` as the review policy.
+- Wait up to about 2 minutes for the Claude review to return before treating the run as hung.
 - Address actionable review findings on the branch, rerun the relevant verification, and push the follow-up commit(s).
-- Treat every push as a new review cycle. If new automated feedback appears after a follow-up push, repeat the loop.
+- Treat every push as a new review cycle. After a follow-up push, rerun Claude review on the latest branch state.
 - If a review suggestion is intentionally not taken, record the reason clearly in the PR.
-- Do not merge immediately after opening the PR or after a follow-up push if the expected automated review has not had a chance to run.
-- The default success signal for this loop is the automated reviewer giving a `+1` / `thumbs up` reaction or an equivalent explicit green-light signal on the latest reviewed state.
-- If the automated reviewer has not yet given a clear green light on the latest push, do not assume the PR is ready to merge.
-- If no automated review arrives after the wait window, say so explicitly before merge rather than silently assuming approval.
+- If the Claude run hangs or fails, record that explicitly in the PR and do not claim the review succeeded.
+- Do not merge immediately after a follow-up push until the latest branch state has gone through the Claude review loop.
 - Human review and taste checkpoints still take precedence where this document already requires them.
 
-### 11.4.1 Local Claude review fallback
-
-When GitHub-side automated review is unavailable, delayed, or unreliable, agents SHOULD run a local Claude Code review before merge and record the result on the PR.
+### 11.4.1 Claude invocation
 
 - Use the repository review policy as input, not a generic review prompt. Pass `docs/process/CODE_REVIEW_GUIDELINES.md` explicitly in the prompt.
 - Prefer reviewing the current branch against `origin/main` from the repo root.
@@ -413,9 +409,6 @@ If there are no findings, say that explicitly and mention residual risks."
 ```
 
 - Empirical note for this repo: direct branch review works better in non-interactive mode than `--from-pr` or very large diff-fed prompts, which may stall.
-- Wait up to about 2 minutes for the local Claude review to return before treating the run as hung.
-- If the run hangs, kill it, note that in the PR, and do not claim the local Claude review succeeded.
-- If the local Claude review returns findings, address actionable ones, rerun the relevant verification, push the follow-up commit, and summarize what was fixed versus deferred on the PR.
 
 ### 11.5 Bootstrap verification exception
 
