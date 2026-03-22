@@ -28,6 +28,13 @@ The bootstrap path contract is:
 
 Later tasks may add more files inside the same run directory, but they should preserve this root layout so agents can locate terminal results deterministically.
 
+The verification stack now also writes stable per-run helper artifacts under the same directory, including:
+
+- `verify_steps.json`
+- `trace.jsonl`
+- `nextest-junit.xml`
+- copied Criterion estimate JSON files when benchmarks run
+
 ## Failure taxonomy
 
 The v1 failure taxonomy is:
@@ -51,3 +58,15 @@ The v1 failure taxonomy is:
 - stable artifact paths
 
 This command is intentionally narrow. Scenario execution, capture, lookdev, replay, and perf surfaces land in later roadmap tasks.
+
+## Verification command
+
+`cargo xtask verify` is now the repo-standard wrapper for:
+
+- bootstrap process contract validation,
+- `cargo fmt --check`,
+- `cargo clippy --workspace --all-targets -- -D warnings`,
+- `cargo nextest run --workspace --profile ci`,
+- the selected Criterion benchmark group.
+
+Its terminal bundle still lands at `reports/harness/verify/<run_id>/terminal_report.json`, and the run directory includes machine-readable step records plus the copied JUnit report so agents and CI do not need to scrape ad-hoc stdout.

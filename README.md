@@ -4,11 +4,12 @@ Wrela v0 is an autonomous-first Rust game runtime project for a narrow procedura
 
 ## Status
 
-The repository now has its initial workspace scaffold.
+The repository now has its initial workspace scaffold plus the default verification stack.
 
 - The full crate and app topology exists as compilable placeholders.
-- CI smoke checks, lint config, Cargo aliases, and ADR-000 are in place.
-- The default next implementation task after this scaffold is `PR-001`.
+- The harness contract and stable artifact layout are in place.
+- `cargo xtask verify` now drives the default repo-wide process contract, lint, test, snapshot, and benchmark flow.
+- The default next implementation task is `PR-003`.
 
 ## Current Source Of Truth
 
@@ -37,16 +38,14 @@ Use these files first:
 
 ## Current Verification
 
-The workspace now supports these baseline checks:
+The repo-standard verification path is now:
 
 ```bash
-python3 docs/process/validate_process_contract.py
-cargo fmt --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo check --workspace
+cargo install cargo-nextest --locked
+cargo xtask verify
 ```
 
-`cargo xtask` exists as a scaffold entrypoint only. The full repo command surface lands in later roadmap tasks.
+`cargo xtask verify` writes its terminal bundle and machine-readable helper artifacts under `reports/harness/verify/<run_id>/`.
 
 ## Target End-State Automation Surface
 

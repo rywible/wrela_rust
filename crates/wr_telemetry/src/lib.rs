@@ -1,5 +1,9 @@
 #![forbid(unsafe_code)]
 
+mod verification;
+
+pub use verification::{VerificationStepRecord, VerificationStepStatus, artifact_component};
+
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use wr_core::{CrateBoundary, CrateEntryPoint};

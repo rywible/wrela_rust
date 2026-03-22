@@ -17,3 +17,13 @@ stub = []
 wr_core.workspace = true
 schemars.workspace = true
 serde.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+insta.workspace = true
+proptest.workspace = true
+tempfile.workspace = true
+
+[[bench]]
+name = "artifact_component"
+harness = false

@@ -1,0 +1,6 @@
+behavior:
+  output: diff
+  update: auto
+test:
+  runner: nextest
+  runner_fallback: false
