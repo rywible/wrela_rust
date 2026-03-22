@@ -385,7 +385,7 @@ Local verification is necessary but insufficient. The task remains in progress u
 
 - Push the branch when the task work is ready for review, then open or update the GitHub PR.
 - Run Claude from the repo root against the current branch versus `origin/main`, using `docs/process/CODE_REVIEW_GUIDELINES.md` as the review policy.
-- Wait up to about 2 minutes for the Claude review to return before treating the run as hung.
+- Wait up to about 10 minutes for the Claude review to return before treating the run as hung.
 - Address actionable review findings on the branch, rerun the relevant verification, and push the follow-up commit(s).
 - Treat every push as a new review cycle. After a follow-up push, rerun Claude review on the latest branch state.
 - If a review suggestion is intentionally not taken, record the reason clearly in the PR.

@@ -277,7 +277,7 @@ If there are no findings, say that explicitly and mention residual risks."
 Operational notes:
 
 - In this repo, direct branch review has been more reliable in non-interactive mode than `claude --from-pr` or very large diff-fed prompts.
-- Give Claude about 2 minutes to complete the review before treating the run as hung.
+- Give Claude about 10 minutes to complete the review before treating the run as hung.
 - If it hangs, terminate the attempt, record that explicitly on the PR, and do not claim the review happened.
 - If it returns findings, treat them like any other review findings: fix actionable items, rerun verification, push, rerun Claude on the latest branch state, and summarize the response on the PR.
 
