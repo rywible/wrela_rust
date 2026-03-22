@@ -305,6 +305,8 @@ mod tests {
     }
 
     fn canonical_metadata() -> RunMetadata {
+        // This fixture is intentionally pinned to stable bootstrap values so the
+        // checked-in golden bundle stays byte-for-byte deterministic across machines.
         RunMetadata {
             command_name: "noop-harness-report".to_owned(),
             run_id: "golden-fixture".to_owned(),
