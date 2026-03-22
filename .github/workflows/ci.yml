@@ -24,3 +24,5 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Check workspace
         run: cargo check --workspace
+      - name: Run scaffold entrypoint test
+        run: cargo test -p wr_game --test scaffold_entrypoints --quiet
