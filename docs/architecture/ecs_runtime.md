@@ -31,17 +31,26 @@ The runtime creates these schedules up front:
 
 In debug builds, schedule ambiguity detection is enabled so conflicting mutable access patterns are surfaced early while the runtime is still small.
 
+The runtime currently uses Bevy's multi-threaded executor, which means independent systems inside the same set may run in arbitrary relative order. That is acceptable at the current bootstrap scale because the headless path only registers a tiny set of deterministic systems and still records output through stable collections, but it is a real replay risk as more systems arrive.
+
+The rule going forward is:
+
+- replay-sensitive headless and scenario paths must either chain order-dependent systems explicitly or keep them on single-threaded execution paths,
+- new plugins must not rely on incidental thread scheduling within a set,
+- if the headless runtime grows enough that those guarantees become fuzzy, the headless path should switch to a single-threaded executor before replay scope widens by accident.
+
 ## Built-in system sets
 
 Every schedule is configured with the same core system-set vocabulary:
 
+- `Input`
 - `WorldGen`
 - `Combat`
 - `Ai`
 - `RenderExtract`
 - `Tooling`
 
-That keeps later crate plugins speaking the same scheduling language even before the content systems exist.
+That keeps later crate plugins speaking the same scheduling language even before the content systems exist. `Input` is reserved for frame-start work such as applying scripted/player actions before pre-physics gameplay systems run.
 
 ## Plugin model
 

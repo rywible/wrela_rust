@@ -159,7 +159,7 @@ pub fn run_headless_scenario_with_tweak_pack(
                 failure_kind: None,
                 details: None,
             },
-            Some(vec!["Headless execution now runs on the PR-007 ECS schedule spine.".to_owned()]),
+            Some(vec!["Headless execution uses the ECS schedule spine.".to_owned()]),
         ),
         AssertionEvaluation::Failed(details) => finalize_summary(
             scenario,

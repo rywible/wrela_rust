@@ -58,6 +58,7 @@ impl WorldSchedule {
 
 #[derive(SystemSet, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorldSystemSet {
+    Input,
     WorldGen,
     Combat,
     Ai,
@@ -179,7 +180,11 @@ impl EcsRuntime {
     }
 
     pub fn run_fixed_frame(&mut self, frame: u32) {
-        self.insert_resource(CurrentFrame(frame));
+        if self.world.contains_resource::<CurrentFrame>() {
+            self.world.resource_mut::<CurrentFrame>().0 = frame;
+        } else {
+            self.world.insert_resource(CurrentFrame(frame));
+        }
         for schedule in WorldSchedule::FIXED_FRAME {
             self.run_schedule(schedule);
         }
@@ -195,6 +200,7 @@ impl EcsRuntime {
 fn configure_builtin_sets(schedule: &mut Schedule) {
     schedule.configure_sets(
         (
+            WorldSystemSet::Input,
             WorldSystemSet::WorldGen,
             WorldSystemSet::Combat,
             WorldSystemSet::Ai,
@@ -289,7 +295,7 @@ impl HeadlessScenarioWorld {
             .insert_resource(TweakRegistryResource(TweakRegistry::default()))
             .add_systems(
                 WorldSchedule::FixedPrePhysics,
-                apply_pending_inputs.in_set(WorldSystemSet::Tooling),
+                apply_pending_inputs.in_set(WorldSystemSet::Input),
             )
             .add_systems(
                 WorldSchedule::FixedGameplay,
