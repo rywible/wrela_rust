@@ -1,13 +1,19 @@
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+use wr_headless::capture_request_for_scenario;
+use wr_render_wgpu::render_offscreen_png;
 use wr_telemetry::{PlatformMetadata, RunMetadata, RunTimestamps, artifact_component};
 use wr_tools_harness::{
     ArtifactDescriptor, ArtifactLayout, CommandExecutionReport, FailureKind,
     HARNESS_SCHEMA_VERSION, HarnessStatus, ResultEnvelope, TERMINAL_REPORT_FILENAME,
-    write_json_artifact,
+    load_scenario_request_ron, write_json_artifact,
 };
 
 use crate::util::{current_git_sha, now_unix_ms};
+
+const CAPTURE_IMAGE_FILENAME: &str = "frame.png";
+const CAPTURE_METADATA_FILENAME: &str = "capture_metadata.json";
 
 pub struct BootstrapCommandOutcome {
     pub terminal_report_path: PathBuf,
@@ -16,16 +22,128 @@ pub struct BootstrapCommandOutcome {
 
 pub fn run_capture(args: impl Iterator<Item = String>) -> Result<BootstrapCommandOutcome, String> {
     let options = ScenarioCommandOptions::parse("capture", args)?;
-    emit_unavailable_report(
-        "capture",
-        options.run_id.unwrap_or_else(|| default_run_id("capture", &options.scenario_path)),
-        format!(
-            "Capture frames is not implemented yet for scenario `{}`.",
-            options.scenario_path
+    let run_id =
+        options.run_id.unwrap_or_else(|| default_run_id("capture", &options.scenario_path));
+    let layout = ArtifactLayout::new("capture", &run_id);
+    let started_at = now_unix_ms()?;
+    let git_sha = current_git_sha().unwrap_or_else(|_| String::from("<unknown>"));
+    let cwd =
+        std::env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))?;
+
+    let mut artifacts = vec![
+        ArtifactDescriptor {
+            role: "terminal_report".to_owned(),
+            path: layout.terminal_report_path_string(),
+            media_type: "application/json".to_owned(),
+        },
+        source_artifact("scenario_source", &options.scenario_path, "text/ron"),
+    ];
+
+    let report_result = match load_scenario_request_ron(&options.scenario_path) {
+        Ok(scenario) => {
+            let request = capture_request_for_scenario(&scenario);
+            let capture_path = layout.run_directory().join(CAPTURE_IMAGE_FILENAME);
+            match render_offscreen_png(&request, &capture_path) {
+                Ok(outcome) => {
+                    let metadata = CaptureMetadataArtifact {
+                        adapter: outcome.adapter,
+                        frame: outcome.frame.clone(),
+                    };
+                    write_json_artifact(&layout, CAPTURE_METADATA_FILENAME, &metadata)
+                        .map_err(|error| format!("failed to write capture metadata: {error}"))?;
+                    artifacts.push(ArtifactDescriptor {
+                        role: "capture_png".to_owned(),
+                        path: capture_path.to_string_lossy().into_owned(),
+                        media_type: "image/png".to_owned(),
+                    });
+                    artifacts.push(ArtifactDescriptor {
+                        role: "capture_metadata".to_owned(),
+                        path: layout
+                            .run_directory()
+                            .join(CAPTURE_METADATA_FILENAME)
+                            .to_string_lossy()
+                            .into_owned(),
+                        media_type: "application/json".to_owned(),
+                    });
+
+                    ReportBuildResult {
+                        result: ResultEnvelope {
+                            status: HarnessStatus::Passed,
+                            summary: format!(
+                                "Captured a {}x{} offscreen PNG for scenario `{}`.",
+                                metadata.frame.size.width,
+                                metadata.frame.size.height,
+                                scenario.scenario_path
+                            ),
+                            failure_kind: None,
+                            details: None,
+                        },
+                        notes: Some(vec![
+                            format!(
+                                "Adapter backend={} name={} device_type={}.",
+                                metadata.adapter.backend,
+                                metadata.adapter.name,
+                                metadata.adapter.device_type
+                            ),
+                            format!(
+                                "Color space={} non_empty_pixels={}.",
+                                metadata.frame.color_space.as_str(),
+                                metadata.frame.non_empty_pixels
+                            ),
+                        ]),
+                        succeeded: true,
+                    }
+                }
+                Err(error) => ReportBuildResult {
+                    result: ResultEnvelope {
+                        status: HarnessStatus::Failed,
+                        summary: format!(
+                            "Failed to capture an offscreen PNG for scenario `{}`.",
+                            scenario.scenario_path
+                        ),
+                        failure_kind: Some(FailureKind::RuntimeCrash),
+                        details: Some(error),
+                    },
+                    notes: Some(vec![
+                        "Offscreen capture uses the deterministic seed-derived clear color until scene extraction lands.".to_owned(),
+                    ]),
+                    succeeded: false,
+                },
+            }
+        }
+        Err(error) => ReportBuildResult {
+            result: ResultEnvelope {
+                status: HarnessStatus::Failed,
+                summary: format!("Failed to load capture scenario `{}`.", options.scenario_path),
+                failure_kind: Some(FailureKind::ScenarioFailed),
+                details: Some(error.to_string()),
+            },
+            notes: None,
+            succeeded: false,
+        },
+    };
+
+    let completed_at = now_unix_ms()?;
+    let report = CommandExecutionReport {
+        schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
+        metadata: RunMetadata::new(
+            "capture",
+            &run_id,
+            git_sha,
+            cwd.display().to_string(),
+            PlatformMetadata::current(),
+            RunTimestamps { started_at_unix_ms: started_at, completed_at_unix_ms: completed_at },
         ),
-        "Offscreen capture lands in PR-010; this command currently reserves the stable harness surface only.".to_owned(),
-        vec![source_artifact("scenario_source", &options.scenario_path, "text/ron")],
-    )
+        command_name: "capture".to_owned(),
+        result: report_result.result,
+        artifacts,
+        notes: report_result.notes,
+    };
+
+    let terminal_report_path = write_json_artifact(&layout, TERMINAL_REPORT_FILENAME, &report)
+        .map_err(|error| format!("failed to write capture terminal report: {error}"))?;
+
+    Ok(BootstrapCommandOutcome { terminal_report_path, succeeded: report_result.succeeded })
 }
 
 pub fn run_lookdev(args: impl Iterator<Item = String>) -> Result<BootstrapCommandOutcome, String> {
@@ -106,6 +224,19 @@ fn emit_unavailable_report(
         .map_err(|error| format!("failed to write {command_name} terminal report: {error}"))?;
 
     Ok(BootstrapCommandOutcome { terminal_report_path, succeeded: false })
+}
+
+#[derive(Debug)]
+struct ReportBuildResult {
+    result: ResultEnvelope,
+    notes: Option<Vec<String>>,
+    succeeded: bool,
+}
+
+#[derive(Debug, Serialize)]
+struct CaptureMetadataArtifact {
+    adapter: wr_render_api::GraphicsAdapterInfo,
+    frame: wr_render_api::CapturedFrameInfo,
 }
 
 fn default_run_id(command_name: &str, source_path: &str) -> String {

@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use winit::application::ApplicationHandler;
@@ -11,8 +12,11 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_render_api::{ColorRgba8, GraphicsAdapterInfo, RenderSize};
+use wr_render_wgpu::SurfaceRenderer;
 
 const DEFAULT_RENDER_RATE_HZ: u32 = 60;
+const DEFAULT_CLEAR_COLOR: ColorRgba8 = ColorRgba8::new(46, 78, 126, 255);
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_platform", CrateBoundary::Subsystem, false)
@@ -433,6 +437,7 @@ pub struct ClientRunSummary {
     pub window_mode: WindowMode,
     pub simulation_rate_hz: u32,
     pub diagnostics: ClientDiagnostics,
+    pub graphics_adapter: Option<GraphicsAdapterInfo>,
 }
 
 impl ClientRunSummary {
@@ -444,7 +449,7 @@ impl ClientRunSummary {
             .unwrap_or_else(|| String::from("n/a"));
 
         format!(
-            "exit={} window_mode={} fixed_updates={} rendered_frames={} resize_events={} focus_changes={} avg_render_ms={} backlog_saturations={}",
+            "exit={} window_mode={} fixed_updates={} rendered_frames={} resize_events={} focus_changes={} avg_render_ms={} backlog_saturations={} adapter={}",
             self.exit_reason,
             self.window_mode.as_str(),
             self.diagnostics.fixed_updates,
@@ -452,7 +457,11 @@ impl ClientRunSummary {
             self.diagnostics.resize_events,
             self.diagnostics.focus_change_events,
             average_render_ms,
-            self.diagnostics.backlog_saturation_events
+            self.diagnostics.backlog_saturation_events,
+            self.graphics_adapter
+                .as_ref()
+                .map(|adapter| format!("{}:{}", adapter.backend, adapter.name))
+                .unwrap_or_else(|| String::from("unavailable"))
         )
     }
 }
@@ -471,8 +480,9 @@ pub fn run_client(config: ClientRuntimeConfig) -> Result<ClientRunSummary, Strin
 
 struct PlatformClientApp {
     config: ClientRuntimeConfig,
-    window: Option<Window>,
+    window: Option<Arc<Window>>,
     window_id: Option<WindowId>,
+    renderer: Option<SurfaceRenderer>,
     action_map: ActionMap,
     action_tracker: ActionTracker,
     fixed_step_clock: FixedStepClock,
@@ -493,6 +503,7 @@ impl PlatformClientApp {
             config,
             window: None,
             window_id: None,
+            renderer: None,
             action_map: ActionMap::default(),
             action_tracker: ActionTracker::default(),
             diagnostics: ClientDiagnostics::default(),
@@ -520,6 +531,7 @@ impl PlatformClientApp {
             window_mode: self.config.window.mode,
             simulation_rate_hz: self.config.fixed_step.simulation_rate_hz,
             diagnostics: self.diagnostics,
+            graphics_adapter: self.renderer.as_ref().map(|renderer| renderer.adapter().clone()),
         })
     }
 
@@ -561,9 +573,22 @@ impl ApplicationHandler for PlatformClientApp {
 
         match event_loop.create_window(attributes) {
             Ok(window) => {
+                let window = Arc::new(window);
                 let inner_size = window.inner_size();
                 self.diagnostics.last_window_size = (inner_size.width, inner_size.height);
                 self.window_id = Some(window.id());
+                self.renderer = match SurfaceRenderer::new(
+                    Arc::clone(&window),
+                    RenderSize::new(inner_size.width, inner_size.height),
+                ) {
+                    Ok(renderer) => Some(renderer),
+                    Err(error) => {
+                        self.fatal_error =
+                            Some(format!("failed to initialize wgpu surface renderer: {error}"));
+                        event_loop.exit();
+                        None
+                    }
+                };
                 self.window = Some(window);
             }
             Err(error) => {
@@ -600,8 +625,18 @@ impl ApplicationHandler for PlatformClientApp {
             WindowEvent::Resized(size) => {
                 self.diagnostics.resize_events += 1;
                 self.diagnostics.last_window_size = (size.width, size.height);
+                if let Some(renderer) = &mut self.renderer {
+                    renderer.resize(RenderSize::new(size.width, size.height));
+                }
             }
             WindowEvent::RedrawRequested => {
+                if let Some(renderer) = &mut self.renderer
+                    && let Err(error) = renderer.render(DEFAULT_CLEAR_COLOR)
+                {
+                    self.fatal_error = Some(format!("failed to render a client frame: {error}"));
+                    event_loop.exit();
+                    return;
+                }
                 self.diagnostics.rendered_frames += 1;
 
                 // Bootstrap shell only: platform wall-clock sampling remains local to the shell.
@@ -863,6 +898,14 @@ mod tests {
                 average_render_interval: Some(Duration::from_millis(16)),
                 ..ClientDiagnostics::default()
             },
+            graphics_adapter: Some(GraphicsAdapterInfo {
+                backend: "metal".to_owned(),
+                name: "test-adapter".to_owned(),
+                device_type: "integrated_gpu".to_owned(),
+                driver: Some("test-driver".to_owned()),
+                driver_info: Some("test-driver-info".to_owned()),
+                shading_language: "wgsl".to_owned(),
+            }),
         };
 
         let line = summary.summary_line();
@@ -875,5 +918,6 @@ mod tests {
         assert!(line.contains("focus_changes=1"));
         assert!(line.contains("avg_render_ms=16.00"));
         assert!(line.contains("backlog_saturations=0"));
+        assert!(line.contains("adapter=metal:test-adapter"));
     }
 }

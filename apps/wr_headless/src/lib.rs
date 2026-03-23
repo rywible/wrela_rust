@@ -4,6 +4,7 @@ use std::path::{Component, Path, PathBuf};
 
 use wr_core::{CrateBoundary, CrateEntryPoint, TelemetryConfig, TweakPack, load_tweak_pack_ron};
 use wr_game::HeadlessScenarioSummary;
+use wr_render_api::{ColorRgba8, OffscreenRenderRequest, RenderSize, clear_color_from_seed_hex};
 use wr_telemetry::{
     CountSummary, PlatformMetadata, RunMetadata, RunTimestamps, ScenarioTelemetrySummary, SeedInfo,
     TimingSummary, TraceCapture, artifact_component, telemetry_note,
@@ -25,6 +26,7 @@ pub const fn target_runtime() -> CrateEntryPoint {
 pub const RUN_SCENARIO_COMMAND_NAME: &str = "run-scenario";
 const METRICS_SUMMARY_FILENAME: &str = "metrics_summary.json";
 const TRACE_LOG_FILENAME: &str = "trace.jsonl";
+pub const DEFAULT_CAPTURE_SIZE: RenderSize = RenderSize::new(960, 540);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadlessRunOutcome {
@@ -57,6 +59,17 @@ pub fn run_scenario_command(
 ) -> Result<HeadlessRunOutcome, String> {
     let options = HeadlessRunOptions::parse(args)?;
     execute_run(options)
+}
+
+pub fn capture_request_for_scenario(
+    scenario: &wr_tools_harness::ScenarioRequest,
+) -> OffscreenRenderRequest {
+    let color = clear_color_from_seed_hex(&scenario.seed.value_hex);
+
+    OffscreenRenderRequest {
+        size: DEFAULT_CAPTURE_SIZE,
+        clear_color: ColorRgba8::new(color.red, color.green, color.blue, 255),
+    }
 }
 
 impl HeadlessRunOptions {

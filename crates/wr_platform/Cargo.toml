@@ -16,3 +16,5 @@ stub = []
 [dependencies]
 wr_core.workspace = true
 winit.workspace = true
+wr_render_api.workspace = true
+wr_render_wgpu.workspace = true
