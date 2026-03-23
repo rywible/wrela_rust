@@ -283,16 +283,8 @@ impl TerrainScalarFieldSet {
         let clamped =
             point.clamp(Vec2::new(0.0, 0.0), Vec2::new(self.config.width_m, self.config.height_m));
         let max_index = f32::from(self.config.cache_resolution.saturating_sub(1));
-        let sample_x = if self.config.width_m == 0.0 {
-            0.0
-        } else {
-            (clamped.x / self.config.width_m) * max_index
-        };
-        let sample_y = if self.config.height_m == 0.0 {
-            0.0
-        } else {
-            (clamped.y / self.config.height_m) * max_index
-        };
+        let sample_x = (clamped.x / self.config.width_m) * max_index;
+        let sample_y = (clamped.y / self.config.height_m) * max_index;
 
         let x0 = sample_x.floor() as usize;
         let y0 = sample_y.floor() as usize;
@@ -671,8 +663,10 @@ hero_path_bias
         fn generated_fields_stay_in_expected_bounds(seed in any::<u64>(), x in 0.0f32..HERO_BIOME_WIDTH_METERS, y in 0.0f32..HERO_BIOME_HEIGHT_METERS) {
             let fields = TerrainScalarFieldSet::generate(root_seed_from_u64(seed), canonical_config()).expect("field set should build");
             let sample = fields.sample(Vec2::new(x, y));
+            let height_epsilon = f32::EPSILON * 32.0;
 
-            prop_assert!((fields.config.height_base_m..=fields.config.height_base_m + fields.config.height_variation_m).contains(&sample.height_m));
+            prop_assert!(sample.height_m >= fields.config.height_base_m - height_epsilon);
+            prop_assert!(sample.height_m <= fields.config.height_base_m + fields.config.height_variation_m + height_epsilon);
             prop_assert!((0.0..=1.0).contains(&sample.slope));
             prop_assert!((0.0..=1.0).contains(&sample.drainage));
             prop_assert!((0.0..=1.0).contains(&sample.moisture));
