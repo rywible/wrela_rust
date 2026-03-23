@@ -409,12 +409,16 @@ python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 60
   - `result.json`
   - `prompt.txt`
   - `stdout.txt`
+  - `raw_response.json`
   - `stderr.txt`
+- The wrapper automatically retries once when Claude exits 0 but returns empty or invalid review payloads, while staying inside the same overall timeout budget.
 - Treat `result.json.status` as authoritative:
   - `completed` means Claude returned usable review text.
-  - `completed_empty_output` means Claude exited 0 but produced no review text.
+  - `completed_empty_output` means Claude exited 0 but produced no usable review text, either because stdout was empty or because Claude returned a blank `result` field.
+  - `completed_invalid_output` means Claude exited 0 but did not return valid JSON output for the wrapper to parse.
   - `exit_nonzero` means the Claude CLI failed.
   - `timeout` means the 10-minute wall-clock budget expired.
+- `stdout.txt` remains the authoritative human-readable review text for compatibility with existing consumers. `raw_response.json` stores Claude's raw JSON payload for debugging.
 - Empirical note for this repo: direct branch review works better in non-interactive mode than `--from-pr` or very large diff-fed prompts, which may stall.
 
 ### 11.5 Bootstrap verification exception

@@ -276,9 +276,14 @@ Operational notes:
   - `result.json`
   - `prompt.txt`
   - `stdout.txt`
+  - `raw_response.json`
   - `stderr.txt`
 - Give the script about 10 minutes to classify the run before treating the review as hung.
-- If `result.json.status` is `timeout`, `exit_nonzero`, or `completed_empty_output`, record that explicitly on the PR and do not claim the review succeeded.
+- The wrapper automatically retries once when Claude exits 0 but returns empty or invalid review payloads, while staying inside the same overall timeout budget.
+- `stdout.txt` remains the authoritative human-readable review text for compatibility with older consumers.
+- `raw_response.json` stores Claude's raw JSON response so empty or malformed payloads can be debugged without scraping terminal text.
+- If `result.json.status` is `timeout`, `exit_nonzero`, `completed_empty_output`, or `completed_invalid_output`, record that explicitly on the PR and do not claim the review succeeded.
+- `completed_empty_output` covers both truly empty stdout and valid Claude JSON envelopes whose `result` field is blank or missing.
 - If `result.json.status` is `completed`, use `stdout.txt` as the authoritative review text.
 - If it returns findings, treat them like any other review findings: fix actionable items, rerun verification, push, rerun Claude on the latest branch state, and summarize the response on the PR.
 
