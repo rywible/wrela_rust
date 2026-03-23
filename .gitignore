@@ -15,6 +15,7 @@ target
 
 # Generated harness run artifacts are local outputs, not source-of-truth baselines.
 reports/harness/
+reports/process/
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

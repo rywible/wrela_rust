@@ -10,10 +10,10 @@ pub use artifact_paths::{
 pub use contract::{
     ArtifactDescriptor, CaptureRequest, DuelMetrics, DuelReport, FailureKind,
     HARNESS_SCHEMA_VERSION, HarnessError, HarnessStatus, LookdevSweepRequest, LookdevVariant,
-    PerformanceMetrics, PerformanceReport, ResultEnvelope, ScenarioActorSpawn, ScenarioAssertion,
-    ScenarioAssertionResult, ScenarioExecutionMetrics, ScenarioExecutionReport, ScenarioRequest,
-    ScriptedInput, TestResultBundle, TestSuiteResult, canonical_noop_test_result_bundle,
-    init_schema_catalog_json, load_scenario_request_ron,
+    PerformanceMetrics, PerformanceReport, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS,
+    ScenarioActorSpawn, ScenarioAssertion, ScenarioAssertionResult, ScenarioExecutionMetrics,
+    ScenarioExecutionReport, ScenarioRequest, ScriptedInput, TestResultBundle, TestSuiteResult,
+    canonical_noop_test_result_bundle, init_schema_catalog_json, load_scenario_request_ron,
 };
 
 use wr_core::{CrateBoundary, CrateEntryPoint};

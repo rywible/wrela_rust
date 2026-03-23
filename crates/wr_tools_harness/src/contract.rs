@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use wr_telemetry::{RunMetadata, SeedInfo};
 
 pub const HARNESS_SCHEMA_VERSION: &str = "wr_harness/v1";
+pub const SUPPORTED_ASSERTION_COMPARATORS: &[&str] = &["eq", "ne", "gt", "gte", "lt", "lte"];
 
 #[derive(Debug)]
 pub enum HarnessError {
@@ -163,7 +164,27 @@ impl ScenarioRequest {
             }
         }
 
+        for scripted_input in &self.scripted_inputs {
+            if scripted_input.frame >= self.fixed_steps {
+                return Err(HarnessError::invalid_scenario(format!(
+                    "scripted input frame {} must be below fixed_steps {}",
+                    scripted_input.frame, self.fixed_steps
+                )));
+            }
+        }
+
         for assertion in &self.assertions {
+            if !SUPPORTED_ASSERTION_COMPARATORS
+                .iter()
+                .any(|comparator| *comparator == assertion.comparator)
+            {
+                return Err(HarnessError::invalid_scenario(format!(
+                    "unsupported assertion comparator `{}`; expected one of {}",
+                    assertion.comparator,
+                    SUPPORTED_ASSERTION_COMPARATORS.join(", ")
+                )));
+            }
+
             if let Some(frame) = assertion.frame
                 && frame >= self.fixed_steps
             {
@@ -736,6 +757,34 @@ mod tests {
         let reparsed: ScenarioRequest = ron::de::from_str(&ron).expect("scenario reparses");
 
         assert_eq!(reparsed, scenario);
+    }
+
+    #[test]
+    fn scenario_request_validation_rejects_unsupported_assertion_comparator() {
+        let mut scenario = canonical_scenario_request();
+        scenario.assertions[0].comparator = "approx".to_owned();
+
+        let error = scenario.validate().expect_err("unsupported comparators should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid scenario: unsupported assertion comparator `approx`; expected one of eq, ne, gt, gte, lt, lte"
+        );
+    }
+
+    #[test]
+    fn scenario_request_validation_rejects_out_of_range_scripted_input_frame() {
+        let mut scenario = canonical_scenario_request();
+        scenario.scripted_inputs[0].frame = scenario.fixed_steps;
+
+        let error = scenario
+            .validate()
+            .expect_err("scripted input frames should stay within the fixed-step window");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid scenario: scripted input frame 16 must be below fixed_steps 16"
+        );
     }
 
     proptest! {

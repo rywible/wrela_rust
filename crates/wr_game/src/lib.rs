@@ -3,8 +3,8 @@
 use wr_core::{CrateBoundary, CrateEntryPoint};
 use wr_ecs::{HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput};
 use wr_tools_harness::{
-    FailureKind, HarnessStatus, ResultEnvelope, ScenarioAssertion, ScenarioAssertionResult,
-    ScenarioExecutionMetrics, ScenarioRequest,
+    FailureKind, HarnessStatus, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS, ScenarioAssertion,
+    ScenarioAssertionResult, ScenarioExecutionMetrics, ScenarioRequest,
 };
 use wr_world_seed::{RootSeed, stable_hash_hex};
 
@@ -213,7 +213,7 @@ fn compare_metric(
 
     let details = if passed {
         None
-    } else if matches!(comparator, "eq" | "ne" | "gt" | "gte" | "lt" | "lte") {
+    } else if SUPPORTED_ASSERTION_COMPARATORS.contains(&comparator) {
         let expectation = match comparator {
             "eq" => format!("equal {} within tolerance {}", assertion.expected, tolerance),
             "ne" => {
