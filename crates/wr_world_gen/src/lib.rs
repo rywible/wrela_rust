@@ -127,6 +127,7 @@ pub struct TerrainScalarFieldSet {
 impl TerrainScalarFieldSet {
     pub fn generate(seed: RootSeed, config: TerrainFieldConfig) -> Result<Self, TerrainFieldError> {
         let config = config.validate()?;
+        // Timing is for debug-only observability and never feeds deterministic outputs.
         let started = tracing::enabled!(Level::DEBUG).then(Instant::now);
         let sampler = TerrainSampler::new(seed, config);
         let resolution = usize::from(config.cache_resolution);
@@ -286,8 +287,8 @@ impl TerrainScalarFieldSet {
         let sample_x = (clamped.x / self.config.width_m) * max_index;
         let sample_y = (clamped.y / self.config.height_m) * max_index;
 
-        let x0 = sample_x.floor() as usize;
-        let y0 = sample_y.floor() as usize;
+        let x0 = sample_x.floor().max(0.0) as usize;
+        let y0 = sample_y.floor().max(0.0) as usize;
         let x1 = (x0 + 1).min(usize::from(self.config.cache_resolution) - 1);
         let y1 = (y0 + 1).min(usize::from(self.config.cache_resolution) - 1);
         let tx = sample_x - (x0 as f32);
