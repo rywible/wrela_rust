@@ -1,0 +1,68 @@
+---
+source: crates/wr_world_gen/src/lib.rs
+expression: fields.summary_report()
+---
+{
+  "seed_hex": "0x00000000DEADBEEF",
+  "width_m": 512.0,
+  "height_m": 512.0,
+  "cache_resolution": 65,
+  "summaries": [
+    {
+      "field": "height",
+      "min": 41.99025,
+      "max": 92.94801,
+      "mean": 73.683914,
+      "stddev": 8.858562
+    },
+    {
+      "field": "slope",
+      "min": 0.0015197481,
+      "max": 0.34054077,
+      "mean": 0.10614274,
+      "stddev": 0.060817007
+    },
+    {
+      "field": "drainage",
+      "min": 0.33054262,
+      "max": 0.7591535,
+      "mean": 0.5555257,
+      "stddev": 0.07009196
+    },
+    {
+      "field": "moisture",
+      "min": 0.28615746,
+      "max": 0.7279153,
+      "mean": 0.535129,
+      "stddev": 0.07598345
+    },
+    {
+      "field": "fog",
+      "min": 0.29860276,
+      "max": 0.73947245,
+      "mean": 0.49906,
+      "stddev": 0.07309525
+    },
+    {
+      "field": "canopy_opportunity",
+      "min": 0.4259445,
+      "max": 0.8841613,
+      "mean": 0.7095716,
+      "stddev": 0.08501985
+    },
+    {
+      "field": "deadfall_probability",
+      "min": 0.21934494,
+      "max": 0.5617968,
+      "mean": 0.403154,
+      "stddev": 0.048139524
+    },
+    {
+      "field": "hero_path_bias",
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.16870613,
+      "stddev": 0.31975162
+    }
+  ]
+}

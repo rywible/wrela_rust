@@ -5022,6 +5022,7 @@ dependencies = [
 name = "wr_math"
 version = "0.1.0"
 dependencies = [
+ "proptest",
  "wr_core",
 ]
 
@@ -5142,7 +5143,14 @@ dependencies = [
 name = "wr_world_gen"
 version = "0.1.0"
 dependencies = [
+ "criterion",
+ "insta",
+ "proptest",
+ "serde",
+ "tracing",
  "wr_core",
+ "wr_math",
+ "wr_world_seed",
 ]
 
 [[package]]
