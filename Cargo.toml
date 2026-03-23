@@ -82,6 +82,9 @@ publish = false
     tracing-subscriber = { version = "0.3.20", features = ["fmt", "json"] }
     tracy-client = "0.18.4"
     bevy_ecs = { version = "0.18.1", default-features = false, features = ["std", "multi_threaded", "trace"] }
+    image = { version = "0.25.8", default-features = false, features = ["png"] }
+    pollster = "0.4.0"
+    wgpu = "28.0.0"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -20,6 +20,8 @@ path = "src/lib.rs"
 wr_agentd.workspace = true
 wr_core.workspace = true
 wr_headless.workspace = true
+wr_render_api.workspace = true
+wr_render_wgpu.workspace = true
 wr_telemetry.workspace = true
 wr_tools_harness.workspace = true
 serde.workspace = true
@@ -28,4 +30,5 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 
 [dev-dependencies]
+image.workspace = true
 tempfile.workspace = true
