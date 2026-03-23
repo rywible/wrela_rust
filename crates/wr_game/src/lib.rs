@@ -114,7 +114,7 @@ pub fn run_headless_scenario_with_tweak_pack(
     let mut assertions = Vec::new();
 
     for frame in 0..scenario.fixed_steps {
-        world.apply_inputs(frame, scripted_inputs.iter().filter(|input| input.frame == frame));
+        world.apply_inputs(scripted_inputs.iter().filter(|input| input.frame == frame));
         world.step(frame);
 
         let due_assertions =

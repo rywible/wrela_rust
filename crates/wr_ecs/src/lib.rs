@@ -92,6 +92,8 @@ impl EcsRuntime {
             .into_iter()
             .map(|label| {
                 let mut schedule = Schedule::new(label);
+                // Follow-up before replay-sensitive systems land: switch headless execution to a
+                // single-threaded executor or add explicit intra-set ordering constraints.
                 schedule.set_executor_kind(ExecutorKind::MultiThreaded);
                 schedule.set_build_settings(build_settings(ambiguity_detection_enabled));
                 configure_builtin_sets(&mut schedule);
@@ -353,7 +355,6 @@ impl HeadlessScenarioWorld {
 
     pub fn apply_inputs<'a>(
         &mut self,
-        _frame: u32,
         inputs: impl IntoIterator<Item = &'a HeadlessScriptedInput>,
     ) {
         let pending_inputs = inputs.into_iter().cloned().collect::<Vec<_>>();
@@ -712,7 +713,7 @@ mod tests {
             state: "unknown_state".to_owned(),
         }];
 
-        world.apply_inputs(0, &inputs);
+        world.apply_inputs(&inputs);
         world.step(0);
 
         assert_eq!(world.applied_input_count(), 0);
@@ -756,8 +757,8 @@ mod tests {
         ];
 
         for frame in 0..2 {
-            first.apply_inputs(frame, inputs.iter().filter(|input| input.frame == frame));
-            second.apply_inputs(frame, inputs.iter().filter(|input| input.frame == frame));
+            first.apply_inputs(inputs.iter().filter(|input| input.frame == frame));
+            second.apply_inputs(inputs.iter().filter(|input| input.frame == frame));
             first.step(frame);
             second.step(frame);
         }
