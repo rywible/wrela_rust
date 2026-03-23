@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack};
 use wr_ecs::{HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput};
 use wr_tools_harness::{
     FailureKind, HarnessStatus, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS, ScenarioAssertion,
@@ -48,6 +48,13 @@ pub struct HeadlessScenarioSummary {
 }
 
 pub fn run_headless_scenario(scenario: &ScenarioRequest) -> HeadlessScenarioSummary {
+    run_headless_scenario_with_tweak_pack(scenario, None)
+}
+
+pub fn run_headless_scenario_with_tweak_pack(
+    scenario: &ScenarioRequest,
+    tweak_pack: Option<&TweakPack>,
+) -> HeadlessScenarioSummary {
     let seed = match RootSeed::parse_hex(&scenario.seed.value_hex) {
         Ok(seed) => seed,
         Err(error) => {
@@ -81,6 +88,17 @@ pub fn run_headless_scenario(scenario: &ScenarioRequest) -> HeadlessScenarioSumm
         .collect::<Vec<_>>();
 
     let mut world = HeadlessScenarioWorld::new(scenario.simulation_rate_hz, seed, &actor_spawns);
+    if let Some(pack) = tweak_pack
+        && let Err(error) = world.apply_tweak_pack(pack)
+    {
+        return failed_summary(
+            scenario,
+            0,
+            0,
+            Vec::new(),
+            format!("failed to apply tweak pack: {error}"),
+        );
+    }
     let mut assertions = Vec::new();
 
     for frame in 0..scenario.fixed_steps {
@@ -331,6 +349,7 @@ mod tests {
         ScenarioRequest {
             schema_version: wr_tools_harness::HARNESS_SCHEMA_VERSION.to_owned(),
             scenario_path: "scenarios/smoke/startup.ron".to_owned(),
+            tweak_pack_path: None,
             simulation_rate_hz: 60,
             fixed_steps: 1,
             seed: SeedInfo::new("hero_forest", "0xDEADBEEF"),
@@ -453,5 +472,25 @@ mod tests {
                 .iter()
                 .any(|note| note.contains("failed before the fixed-step simulation completed"))
         }));
+    }
+
+    #[test]
+    fn run_headless_scenario_with_tweak_pack_surfaces_tweak_metrics() {
+        let scenario = test_scenario(vec![test_assertion(
+            "tweaks.dirty_namespace_count",
+            "eq",
+            1.0,
+            Some(0.0),
+        )]);
+        let pack = TweakPack::new(std::collections::BTreeMap::from([(
+            "world.wind_strength".to_owned(),
+            wr_core::TweakValue::Scalar(0.5),
+        )]));
+
+        let summary = run_headless_scenario_with_tweak_pack(&scenario, Some(&pack));
+
+        assert_eq!(summary.result.status, HarnessStatus::Passed);
+        assert_eq!(summary.assertions.len(), 1);
+        assert!(summary.assertions[0].passed);
     }
 }

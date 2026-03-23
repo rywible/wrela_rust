@@ -2,7 +2,7 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack, load_tweak_pack_ron};
 use wr_game::HeadlessScenarioSummary;
 use wr_telemetry::{PlatformMetadata, RunMetadata, RunTimestamps, SeedInfo, artifact_component};
 use wr_tools_harness::{
@@ -108,7 +108,7 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     let git_sha = current_git_sha().unwrap_or_else(|_| String::from("<unknown>"));
 
     let load_result = load_scenario_request_ron(&options.scenario_path);
-    let (seed, scenario_path, summary, notes) = match load_result {
+    let (seed, scenario_path, tweak_pack_path, summary, notes) = match load_result {
         Ok(scenario) => {
             if let Err(error) =
                 validate_declared_scenario_path(&options.scenario_path, &scenario.scenario_path)
@@ -116,20 +116,40 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
                 (
                     scenario.seed,
                     options.scenario_path.to_string_lossy().into_owned(),
-                    load_failure_summary(error),
+                    scenario.tweak_pack_path,
+                    failure_summary("Scenario could not be loaded.", error),
                     None,
                 )
             } else {
-                let summary = wr_game::run_headless_scenario(&scenario);
-                (
-                    scenario.seed,
-                    scenario.scenario_path,
-                    summary,
-                    Some(vec![format!(
-                        "Scenario source loaded from {}.",
-                        options.scenario_path.display()
-                    )]),
-                )
+                let scenario_note =
+                    format!("Scenario source loaded from {}.", options.scenario_path.display());
+                let tweak_pack_path = scenario.tweak_pack_path.clone();
+                match load_optional_tweak_pack(scenario.tweak_pack_path.as_deref()) {
+                    Ok(tweak_pack) => {
+                        let mut notes = vec![scenario_note];
+                        if let Some(path) = tweak_pack_path.as_deref() {
+                            notes.push(format!("Tweak pack applied from {path}."));
+                        }
+
+                        (
+                            scenario.seed.clone(),
+                            scenario.scenario_path.clone(),
+                            tweak_pack_path,
+                            wr_game::run_headless_scenario_with_tweak_pack(
+                                &scenario,
+                                tweak_pack.as_ref(),
+                            ),
+                            Some(notes),
+                        )
+                    }
+                    Err(error) => (
+                        scenario.seed.clone(),
+                        scenario.scenario_path.clone(),
+                        tweak_pack_path,
+                        failure_summary("Scenario could not be executed.", error),
+                        Some(vec![scenario_note]),
+                    ),
+                }
             }
         }
         Err(error) => (
@@ -139,7 +159,8 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
                 stream: Some("load_failure".to_owned()),
             },
             options.scenario_path.to_string_lossy().into_owned(),
-            load_failure_summary(error.to_string()),
+            None,
+            failure_summary("Scenario could not be loaded.", error.to_string()),
             None,
         ),
     };
@@ -163,6 +184,15 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
         artifacts.push(ArtifactDescriptor {
             role: "scenario_source".to_owned(),
             path: scenario_path.clone(),
+            media_type: "text/ron".to_owned(),
+        });
+    }
+    if let Some(tweak_pack_path) = &tweak_pack_path
+        && Path::new(tweak_pack_path).exists()
+    {
+        artifacts.push(ArtifactDescriptor {
+            role: "tweak_pack_source".to_owned(),
+            path: tweak_pack_path.clone(),
             media_type: "text/ron".to_owned(),
         });
     }
@@ -234,11 +264,11 @@ fn normalize_relative_path(path: &Path) -> PathBuf {
     normalized
 }
 
-fn load_failure_summary(details: String) -> HeadlessScenarioSummary {
+fn failure_summary(summary: &str, details: String) -> HeadlessScenarioSummary {
     HeadlessScenarioSummary {
         result: ResultEnvelope {
             status: HarnessStatus::Failed,
-            summary: "Scenario could not be loaded.".to_owned(),
+            summary: summary.to_owned(),
             failure_kind: Some(FailureKind::ScenarioFailed),
             details: Some(details),
         },
@@ -257,6 +287,14 @@ fn load_failure_summary(details: String) -> HeadlessScenarioSummary {
                 .to_owned(),
         ]),
     }
+}
+
+fn load_optional_tweak_pack(path: Option<&str>) -> Result<Option<TweakPack>, String> {
+    path.map(|path| {
+        load_tweak_pack_ron(path)
+            .map_err(|error| format!("failed to load tweak pack `{path}`: {error}"))
+    })
+    .transpose()
 }
 
 fn merge_notes(

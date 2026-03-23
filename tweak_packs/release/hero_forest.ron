@@ -1,0 +1,37 @@
+(
+    schema_version: "wr_tweak_pack/v1",
+    entries: {
+        "atmosphere.mie_strength": (
+            type: scalar,
+            value: 1.12,
+        ),
+        "combat.hitstop_scale": (
+            type: scalar,
+            value: 1.08,
+        ),
+        "foliage.sway_strength": (
+            type: scalar,
+            value: 0.58,
+        ),
+        "lighting.sun_warmth": (
+            type: scalar,
+            value: 0.74,
+        ),
+        "player.camera_bob_enabled": (
+            type: toggle,
+            value: false,
+        ),
+        "vfx.trail_opacity": (
+            type: scalar,
+            value: 0.82,
+        ),
+        "world.wind_strength": (
+            type: scalar,
+            value: 0.48,
+        ),
+        "wraith.ribbon_emissive": (
+            type: scalar,
+            value: 0.67,
+        ),
+    },
+)

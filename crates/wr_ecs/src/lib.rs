@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack, TweakRegistry, TweakValue};
 use wr_world_seed::RootSeed;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -31,12 +31,13 @@ pub struct HeadlessScriptedInput {
     pub state: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct HeadlessScenarioWorld {
     simulation_rate_hz: u32,
     frames_simulated: u32,
     applied_input_count: u32,
     actors: Vec<ScenarioActorState>,
+    tweaks: TweakRegistry,
     active_actions: BTreeSet<String>,
     event_log: Vec<String>,
 }
@@ -62,9 +63,27 @@ impl HeadlessScenarioWorld {
             frames_simulated: 0,
             applied_input_count: 0,
             actors,
+            tweaks: TweakRegistry::default(),
             active_actions: BTreeSet::new(),
             event_log: Vec::new(),
         }
+    }
+
+    pub fn apply_tweak_pack(&mut self, pack: &TweakPack) -> Result<(), String> {
+        self.tweaks.apply_pack(pack).map_err(|error| error.to_string())?;
+        let dirty_namespaces = self
+            .tweaks
+            .dirty_namespaces()
+            .iter()
+            .map(|namespace| namespace.as_str())
+            .collect::<Vec<_>>()
+            .join(",");
+        self.event_log.push(format!(
+            "tweaks:applied:{}:{}",
+            pack.entries.len(),
+            if dirty_namespaces.is_empty() { "none" } else { &dirty_namespaces }
+        ));
+        Ok(())
     }
 
     pub fn apply_inputs<'a>(
@@ -108,7 +127,11 @@ impl HeadlessScenarioWorld {
             "world.frames_simulated" | "startup.frame_count" => Some(self.frames_simulated as f32),
             "world.active_action_count" => Some(self.active_actions.len() as f32),
             "world.applied_input_count" => Some(self.applied_input_count as f32),
-            _ => None,
+            "tweaks.dirty_namespace_count" => Some(self.tweaks.dirty_namespace_count() as f32),
+            metric => metric
+                .strip_prefix("tweak.")
+                .and_then(|key| self.tweaks.value(key))
+                .map(tweak_value_as_metric),
         }
     }
 
@@ -128,6 +151,10 @@ impl HeadlessScenarioWorld {
         self.applied_input_count
     }
 
+    pub fn tweak_registry(&self) -> &TweakRegistry {
+        &self.tweaks
+    }
+
     pub fn deterministic_records(&self) -> Vec<String> {
         let mut records = vec![
             format!("frames={}", self.frames_simulated),
@@ -138,14 +165,48 @@ impl HeadlessScenarioWorld {
         records.extend(self.actors.iter().map(|actor| {
             format!("actor:{}:{}:{}", actor.actor_id, actor.actor_kind, actor.stream_signature)
         }));
+        records.extend(
+            self.tweaks
+                .entries()
+                .into_iter()
+                .map(|entry| format!("tweak:{}={}", entry.key, tweak_value_as_record(entry.value))),
+        );
+        records.extend(
+            self.tweaks
+                .dirty_namespaces()
+                .iter()
+                .map(|namespace| format!("tweak_dirty:{}", namespace.as_str())),
+        );
         records.extend(self.active_actions.iter().map(|action| format!("active_action:{action}")));
         records.extend(self.event_log.iter().cloned());
         records
     }
 }
 
+fn tweak_value_as_metric(value: TweakValue) -> f32 {
+    match value {
+        TweakValue::Scalar(value) => value,
+        TweakValue::Toggle(value) => {
+            if value {
+                1.0
+            } else {
+                0.0
+            }
+        }
+    }
+}
+
+fn tweak_value_as_record(value: TweakValue) -> String {
+    match value {
+        TweakValue::Scalar(value) => format!("{value:.6}"),
+        TweakValue::Toggle(value) => value.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     fn test_world() -> HeadlessScenarioWorld {
@@ -211,5 +272,22 @@ mod tests {
         second.step(0);
 
         assert_eq!(first.deterministic_records(), second.deterministic_records());
+    }
+
+    #[test]
+    fn tweak_packs_update_metrics_and_dirty_namespaces() {
+        let mut world = test_world();
+        let pack = TweakPack::new(BTreeMap::from([
+            ("world.wind_strength".to_owned(), TweakValue::Scalar(0.5)),
+            ("player.camera_bob_enabled".to_owned(), TweakValue::Toggle(false)),
+        ]));
+
+        world.apply_tweak_pack(&pack).expect("pack should apply");
+
+        assert_eq!(world.metric_value("tweaks.dirty_namespace_count"), Some(2.0));
+        assert_eq!(world.metric_value("tweak.world.wind_strength"), Some(0.5));
+        assert_eq!(world.metric_value("tweak.player.camera_bob_enabled"), Some(0.0));
+        assert!(world.tweak_registry().is_namespace_dirty(wr_core::TweakNamespace::World));
+        assert!(world.deterministic_records().iter().any(|record| record == "tweak_dirty:world"));
     }
 }

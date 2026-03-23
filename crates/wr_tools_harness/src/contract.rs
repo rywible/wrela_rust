@@ -124,6 +124,8 @@ pub struct ScenarioAssertion {
 pub struct ScenarioRequest {
     pub schema_version: String,
     pub scenario_path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tweak_pack_path: Option<String>,
     pub simulation_rate_hz: u32,
     pub fixed_steps: u32,
     pub seed: SeedInfo,
@@ -152,6 +154,14 @@ impl ScenarioRequest {
 
         if self.fixed_steps == 0 {
             return Err(HarnessError::invalid_scenario("fixed_steps must be greater than zero"));
+        }
+
+        if let Some(tweak_pack_path) = &self.tweak_pack_path
+            && tweak_pack_path.trim().is_empty()
+        {
+            return Err(HarnessError::invalid_scenario(
+                "tweak_pack_path must not be blank when provided",
+            ));
         }
 
         let mut actor_ids = BTreeSet::new();
@@ -713,6 +723,7 @@ mod tests {
         ScenarioRequest {
             schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
             scenario_path: "scenarios/smoke/startup.ron".to_owned(),
+            tweak_pack_path: Some("tweak_packs/release/hero_forest.ron".to_owned()),
             simulation_rate_hz: 60,
             fixed_steps: 16,
             seed: canonical_seed(),
@@ -1111,6 +1122,19 @@ mod tests {
         assert_eq!(
             error.to_string(),
             "invalid scenario: scripted input frame 16 must be below fixed_steps 16"
+        );
+    }
+
+    #[test]
+    fn scenario_request_validation_rejects_blank_tweak_pack_path() {
+        let mut scenario = canonical_scenario_request();
+        scenario.tweak_pack_path = Some("   ".to_owned());
+
+        let error = scenario.validate().expect_err("blank tweak pack paths should be rejected");
+
+        assert_eq!(
+            error.to_string(),
+            "invalid scenario: tweak_pack_path must not be blank when provided"
         );
     }
 
