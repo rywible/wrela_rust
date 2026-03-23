@@ -1,7 +1,9 @@
 #![forbid(unsafe_code)]
 
 use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack};
-use wr_ecs::{HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput};
+use wr_ecs::{
+    EcsRuntime, GamePlugin, HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput,
+};
 use wr_tools_harness::{
     FailureKind, HarnessStatus, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS, ScenarioAssertion,
     ScenarioAssertionResult, ScenarioExecutionMetrics, ScenarioRequest,
@@ -45,6 +47,16 @@ pub struct HeadlessScenarioSummary {
     pub assertions: Vec<ScenarioAssertionResult>,
     pub determinism_hash: String,
     pub notes: Option<Vec<String>>,
+}
+
+pub fn compose_game_runtime(
+    plugins: impl IntoIterator<Item = Box<dyn GamePlugin>>,
+) -> Result<EcsRuntime, String> {
+    let mut runtime = EcsRuntime::new();
+    for plugin in plugins {
+        runtime.add_boxed_plugin(plugin)?;
+    }
+    Ok(runtime)
 }
 
 pub fn run_headless_scenario(scenario: &ScenarioRequest) -> HeadlessScenarioSummary {
@@ -147,10 +159,7 @@ pub fn run_headless_scenario_with_tweak_pack(
                 failure_kind: None,
                 details: None,
             },
-            Some(vec![
-                "Headless execution uses the bootstrap fixed-step world; ECS scheduling lands in PR-007."
-                    .to_owned(),
-            ]),
+            Some(vec!["Headless execution now runs on the PR-007 ECS schedule spine.".to_owned()]),
         ),
         AssertionEvaluation::Failed(details) => finalize_summary(
             scenario,

@@ -9,7 +9,7 @@ The repository now has its initial workspace scaffold plus the default verificat
 - The full crate and app topology exists as compilable placeholders.
 - The harness contract and stable artifact layout are in place.
 - `cargo xtask verify` now drives the default repo-wide process contract, lint, test, snapshot, and benchmark flow.
-- The default next implementation task is `PR-003`.
+- The default next implementation task is `PR-008`.
 
 ## Current Source Of Truth
 

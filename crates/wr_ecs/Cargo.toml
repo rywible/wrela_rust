@@ -14,5 +14,6 @@ default = []
 stub = []
 
 [dependencies]
+bevy_ecs.workspace = true
 wr_core.workspace = true
 wr_world_seed.workspace = true

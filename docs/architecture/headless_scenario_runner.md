@@ -6,13 +6,13 @@
 
 The headless runner exists so agents can validate gameplay-facing contracts without depending on a visible client, GPU state, or log scraping.
 
-In bootstrap form, the runner intentionally does only three things:
+The current bootstrap-plus-runtime form intentionally does three things:
 
 1. load a `.ron` scenario contract,
 2. simulate a fixed number of steps in a deterministic world stub,
 3. emit a machine-readable terminal report even when the scenario fails.
 
-The richer ECS schedule and runtime composition still land in later roadmap tasks, but the harness surface is now real and testable.
+The harness surface remains narrow, but it now runs on top of the repo's explicit ECS schedule spine from `PR-007`.
 
 ## Scenario file contract
 
@@ -41,12 +41,20 @@ The current no-window path is:
 
 `wr_game` owns the fixed-step loop and assertion evaluation.
 
-`wr_ecs` currently provides a deterministic bootstrap world instead of the later full ECS schedule. That world only tracks the minimum state needed for smoke scenarios:
+`wr_ecs` now provides the runtime schedule spine used by the headless path. The current headless world still tracks only the minimum gameplay state needed for smoke scenarios:
 
-- actor spawns,
-- active scripted inputs,
-- simulated frame count,
+- actor spawns stored as ECS components,
+- active scripted inputs stored in ECS resources,
+- simulated frame count tracked through the fixed schedules,
 - event records used for deterministic hashing.
+
+The fixed-step order is now:
+
+`FixedPrePhysics -> FixedPhysics -> FixedGameplay -> FixedPostGameplay`
+
+The extraction path reserved for later render work is also explicit:
+
+`Extract -> RenderPrep`
 
 `wr_world_seed` provides stable root-seed parsing plus deterministic sub-stream derivation for actor signatures and report hashing.
 

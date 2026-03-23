@@ -80,6 +80,7 @@ publish = false
     tower = { version = "0.5.2", features = ["util"] }
     tracing = "0.1.41"
     tracing-subscriber = { version = "0.3.20", features = ["fmt", "json"] }
+    bevy_ecs = { version = "0.18.1", default-features = false, features = ["std", "multi_threaded", "trace"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
