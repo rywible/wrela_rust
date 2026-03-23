@@ -10,6 +10,9 @@ pub const DEBUG_COLOR_TARGET_RESOURCE: &str = "color_target";
 pub const DEBUG_TRIANGLE_PASS_NAME: &str = "debug_geometry";
 pub const DEBUG_TRIANGLE_SHADER_ID: &str = "debug_triangle";
 pub const DEBUG_TRIANGLE_PIPELINE_ID: &str = "debug_triangle_pipeline";
+pub const FOLIAGE_CARD_PASS_NAME: &str = "foliage_cards";
+pub const FOLIAGE_CARD_SHADER_ID: &str = "foliage_card";
+pub const FOLIAGE_CARD_PIPELINE_ID: &str = "foliage_card_pipeline";
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_render_api", CrateBoundary::Subsystem, false)
@@ -112,10 +115,41 @@ impl DebugTriangle {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FoliageCardVertex {
+    pub position: Vec3,
+    pub uv: [f32; 2],
+    pub normal: Vec3,
+    pub packed_material_params: [u32; 2],
+}
+
+impl FoliageCardVertex {
+    pub const fn new(
+        position: Vec3,
+        uv: [f32; 2],
+        normal: Vec3,
+        packed_material_params: [u32; 2],
+    ) -> Self {
+        Self { position, uv, normal, packed_material_params }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct FoliageCard {
+    pub vertices: [FoliageCardVertex; 4],
+}
+
+impl FoliageCard {
+    pub const fn new(vertices: [FoliageCardVertex; 4]) -> Self {
+        Self { vertices }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ScenePrimitive {
     DebugTriangle(DebugTriangle),
+    FoliageCard(FoliageCard),
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -134,8 +168,16 @@ impl ExtractedRenderScene {
     }
 
     pub fn debug_triangles(&self) -> impl Iterator<Item = &DebugTriangle> {
-        self.primitives.iter().map(|primitive| match primitive {
-            ScenePrimitive::DebugTriangle(triangle) => triangle,
+        self.primitives.iter().filter_map(|primitive| match primitive {
+            ScenePrimitive::DebugTriangle(triangle) => Some(triangle),
+            ScenePrimitive::FoliageCard(_) => None,
+        })
+    }
+
+    pub fn foliage_cards(&self) -> impl Iterator<Item = &FoliageCard> {
+        self.primitives.iter().filter_map(|primitive| match primitive {
+            ScenePrimitive::DebugTriangle(_) => None,
+            ScenePrimitive::FoliageCard(card) => Some(card),
         })
     }
 }
@@ -529,9 +571,14 @@ impl RenderGraph {
     }
 
     fn resource_writer_map(&self) -> Result<BTreeMap<&str, &str>, String> {
+        let resources = self.resource_map()?;
         let mut writers = BTreeMap::new();
         for pass in &self.passes {
             for resource in &pass.writes {
+                if resources.get(resource.as_str()).is_some_and(|declaration| declaration.external)
+                {
+                    continue;
+                }
                 if let Some(previous) = writers.insert(resource.as_str(), pass.name.as_str()) {
                     return Err(format!(
                         "resource `{resource}` is written by both `{previous}` and `{}`",
@@ -579,6 +626,14 @@ pub fn debug_triangle_graph() -> RenderGraph {
         )
 }
 
+pub fn debug_triangle_and_foliage_graph() -> RenderGraph {
+    debug_triangle_graph().add_pass(
+        RenderPassNode::new(FOLIAGE_CARD_PASS_NAME, FOLIAGE_CARD_PIPELINE_ID)
+            .depends_on(DEBUG_TRIANGLE_PASS_NAME)
+            .writes(DEBUG_COLOR_TARGET_RESOURCE),
+    )
+}
+
 pub fn clear_color_from_seed_hex(seed_hex: &str) -> ColorRgba8 {
     let trimmed = seed_hex.trim().trim_start_matches("0x").trim_start_matches("0X");
 
@@ -605,21 +660,40 @@ mod tests {
 
     fn registry() -> RenderFeatureRegistry {
         RenderFeatureRegistry {
-            shaders: vec![ShaderModuleAsset {
-                id: DEBUG_TRIANGLE_SHADER_ID.to_owned(),
-                label: String::from("debug triangle"),
-                source: ShaderSource::Wgsl(String::from(
-                    "@vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(); }",
-                )),
-                vertex_entry: String::from("vs_main"),
-                fragment_entry: String::from("fs_main"),
-            }],
-            pipelines: vec![PipelineAssetDescriptor {
-                id: DEBUG_TRIANGLE_PIPELINE_ID.to_owned(),
-                shader_id: DEBUG_TRIANGLE_SHADER_ID.to_owned(),
-                topology: PrimitiveTopology::TriangleList,
-                color_target: RenderColorSpace::Rgba8UnormSrgb,
-            }],
+            shaders: vec![
+                ShaderModuleAsset {
+                    id: DEBUG_TRIANGLE_SHADER_ID.to_owned(),
+                    label: String::from("debug triangle"),
+                    source: ShaderSource::Wgsl(String::from(
+                        "@vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(); }",
+                    )),
+                    vertex_entry: String::from("vs_main"),
+                    fragment_entry: String::from("fs_main"),
+                },
+                ShaderModuleAsset {
+                    id: FOLIAGE_CARD_SHADER_ID.to_owned(),
+                    label: String::from("foliage card"),
+                    source: ShaderSource::Wgsl(String::from(
+                        "@vertex fn vs_main() -> @builtin(position) vec4<f32> { return vec4<f32>(); }\n@fragment fn fs_main() -> @location(0) vec4<f32> { return vec4<f32>(); }",
+                    )),
+                    vertex_entry: String::from("vs_main"),
+                    fragment_entry: String::from("fs_main"),
+                },
+            ],
+            pipelines: vec![
+                PipelineAssetDescriptor {
+                    id: DEBUG_TRIANGLE_PIPELINE_ID.to_owned(),
+                    shader_id: DEBUG_TRIANGLE_SHADER_ID.to_owned(),
+                    topology: PrimitiveTopology::TriangleList,
+                    color_target: RenderColorSpace::Rgba8UnormSrgb,
+                },
+                PipelineAssetDescriptor {
+                    id: FOLIAGE_CARD_PIPELINE_ID.to_owned(),
+                    shader_id: FOLIAGE_CARD_SHADER_ID.to_owned(),
+                    topology: PrimitiveTopology::TriangleList,
+                    color_target: RenderColorSpace::Rgba8UnormSrgb,
+                },
+            ],
         }
     }
 
@@ -717,6 +791,13 @@ mod tests {
     }
 
     #[test]
+    fn foliage_graph_validates_pipeline_bindings_against_registry() {
+        debug_triangle_and_foliage_graph()
+            .validate_with_registry(&registry())
+            .expect("foliage graph should validate against the registered assets");
+    }
+
+    #[test]
     fn extracted_scene_exposes_debug_triangle_iterators() {
         let triangle = DebugTriangle::new([
             DebugVertex::new(Vec3::new(-0.5, -0.5, 0.0), LinearColor::new(1.0, 0.0, 0.0, 1.0)),
@@ -729,5 +810,41 @@ mod tests {
         let triangles = scene.debug_triangles().cloned().collect::<Vec<_>>();
 
         assert_eq!(triangles, vec![triangle]);
+    }
+
+    #[test]
+    fn extracted_scene_exposes_foliage_card_iterators() {
+        let card = FoliageCard::new([
+            FoliageCardVertex::new(
+                Vec3::new(-0.4, -0.4, 0.0),
+                [0.0, 0.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [1, 2],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(0.4, -0.4, 0.0),
+                [1.0, 0.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [1, 2],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(0.4, 0.4, 0.0),
+                [1.0, 1.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [1, 2],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(-0.4, 0.4, 0.0),
+                [0.0, 1.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [1, 2],
+            ),
+        ]);
+        let mut scene = ExtractedRenderScene::new(ColorRgba8::new(1, 2, 3, 255));
+        scene.push_primitive(ScenePrimitive::FoliageCard(card.clone()));
+
+        let cards = scene.foliage_cards().cloned().collect::<Vec<_>>();
+
+        assert_eq!(cards, vec![card]);
     }
 }

@@ -1,10 +1,15 @@
 #![forbid(unsafe_code)]
 
+mod foliage_debug;
 mod redwood_debug;
 mod terrain_debug;
 
 use wr_core::{CrateBoundary, CrateEntryPoint};
 
+pub use foliage_debug::{
+    CanonicalRedwoodFoliageDebugScene, RedwoodFoliageDebugSceneConfig,
+    build_redwood_foliage_debug_scene, canonical_redwood_foliage_debug_scene,
+};
 pub use redwood_debug::{
     CanonicalRedwoodForestDebugScene, RedwoodForestDebugOverlayConfig,
     build_redwood_forest_debug_scene, canonical_redwood_forest_debug_scene,

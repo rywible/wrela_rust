@@ -11,7 +11,8 @@ use winit::window::Window;
 use wr_core::{CrateBoundary, CrateEntryPoint};
 use wr_render_api::{
     CapturedFrameInfo, ColorRgba8, DEBUG_TRIANGLE_PASS_NAME, DEBUG_TRIANGLE_PIPELINE_ID,
-    DEBUG_TRIANGLE_SHADER_ID, DebugTriangle, ExtractedRenderScene, GraphicsAdapterInfo,
+    DEBUG_TRIANGLE_SHADER_ID, DebugTriangle, ExtractedRenderScene, FOLIAGE_CARD_PASS_NAME,
+    FOLIAGE_CARD_PIPELINE_ID, FOLIAGE_CARD_SHADER_ID, FoliageCard, GraphicsAdapterInfo,
     OffscreenRenderRequest, PipelineAssetDescriptor, PrimitiveTopology, RenderColorSpace,
     RenderFeatureRegistry, RenderGraph, RenderSize, ShaderModuleAsset, ShaderSource,
     debug_triangle_graph,
@@ -19,6 +20,7 @@ use wr_render_api::{
 
 const CLEAR_PASS_SHADER_WGSL: &str = include_str!("clear_pass.wgsl");
 const DEBUG_TRIANGLE_SHADER_WGSL: &str = include_str!("debug_triangle.wgsl");
+const FOLIAGE_CARD_SHADER_WGSL: &str = include_str!("foliage_card.wgsl");
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -61,13 +63,13 @@ pub fn render_scene_to_png(
         size,
         scene,
         graph,
-        &[&DebugTrianglePassFactory],
+        &[&DebugTrianglePassFactory, &FoliageCardPassFactory],
         output_path,
     )
 }
 
 pub fn builtin_scene_registry() -> RenderFeatureRegistry {
-    registry_from_factories(&[&DebugTrianglePassFactory])
+    registry_from_factories(&[&DebugTrianglePassFactory, &FoliageCardPassFactory])
 }
 
 pub trait RenderPassFactory: Send + Sync {
@@ -275,7 +277,8 @@ impl SurfaceRenderer {
         let registry = builtin_scene_registry();
         graph.validate_with_registry(&registry)?;
         let ordered_passes = graph.ordered_pass_names()?;
-        let factories: [&dyn RenderPassFactory; 1] = [&DebugTrianglePassFactory];
+        let factories: [&dyn RenderPassFactory; 2] =
+            [&DebugTrianglePassFactory, &FoliageCardPassFactory];
         let factory_lookup = build_factory_lookup(&factories)?;
         let shader_modules = build_shader_modules(&self.device, &registry)?;
         let pipelines = build_pipelines(
@@ -406,6 +409,110 @@ impl RenderPassFactory for DebugTrianglePassFactory {
             pass.set_vertex_buffer(0, buffer.slice(..));
             let vertex_count = u32::try_from(vertices.len() / DEBUG_VERTEX_STRIDE)
                 .map_err(|_| String::from("too many debug triangle vertices for one draw call"))?;
+            pass.draw(0..vertex_count, 0..1);
+        }
+
+        Ok(())
+    }
+}
+
+struct FoliageCardPassFactory;
+
+impl RenderPassFactory for FoliageCardPassFactory {
+    fn pass_name(&self) -> &'static str {
+        FOLIAGE_CARD_PASS_NAME
+    }
+
+    fn shader_asset(&self) -> ShaderModuleAsset {
+        ShaderModuleAsset {
+            id: String::from(FOLIAGE_CARD_SHADER_ID),
+            label: String::from("wr_render_wgpu::foliage_card"),
+            source: ShaderSource::Wgsl(String::from(FOLIAGE_CARD_SHADER_WGSL)),
+            vertex_entry: String::from("vs_main"),
+            fragment_entry: String::from("fs_main"),
+        }
+    }
+
+    fn pipeline_asset(&self) -> PipelineAssetDescriptor {
+        PipelineAssetDescriptor {
+            id: String::from(FOLIAGE_CARD_PIPELINE_ID),
+            shader_id: String::from(FOLIAGE_CARD_SHADER_ID),
+            topology: PrimitiveTopology::TriangleList,
+            color_target: RenderColorSpace::Rgba8UnormSrgb,
+        }
+    }
+
+    fn create_pipeline(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+    ) -> wgpu::RenderPipeline {
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("wr_render_wgpu::foliage_card_layout"),
+            bind_group_layouts: &[],
+            immediate_size: 0,
+        });
+
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("wr_render_wgpu::foliage_card_pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[foliage_vertex_layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState { cull_mode: None, ..wgpu::PrimitiveState::default() },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        })
+    }
+
+    fn encode(&self, context: RenderPassEncodeContext<'_>) -> Result<(), String> {
+        let vertices = foliage_vertex_bytes(context.scene.foliage_cards())?;
+        let buffer = context.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("wr_render_wgpu::foliage_card_vertices"),
+            contents: &vertices,
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let load_op = if context.load_existing {
+            wgpu::LoadOp::Load
+        } else {
+            wgpu::LoadOp::Clear(color_to_wgpu(context.clear_color))
+        };
+
+        let mut pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("wr_render_wgpu::foliage_card_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: context.target,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations { load: load_op, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(context.pipeline);
+        if !vertices.is_empty() {
+            pass.set_vertex_buffer(0, buffer.slice(..));
+            let vertex_count = u32::try_from(vertices.len() / FOLIAGE_VERTEX_STRIDE)
+                .map_err(|_| String::from("too many foliage vertices for one draw call"))?;
             pass.draw(0..vertex_count, 0..1);
         }
 
@@ -774,6 +881,8 @@ fn color_to_wgpu(color: ColorRgba8) -> wgpu::Color {
 }
 
 const DEBUG_VERTEX_STRIDE: usize = std::mem::size_of::<f32>() * 7;
+const FOLIAGE_VERTEX_STRIDE: usize =
+    (std::mem::size_of::<f32>() * 8) + (std::mem::size_of::<u32>() * 2);
 
 fn debug_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
     wgpu::VertexBufferLayout {
@@ -789,6 +898,35 @@ fn debug_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
                 format: wgpu::VertexFormat::Float32x4,
                 offset: (std::mem::size_of::<f32>() * 3) as u64,
                 shader_location: 1,
+            },
+        ],
+    }
+}
+
+fn foliage_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: FOLIAGE_VERTEX_STRIDE as u64,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 0,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x2,
+                offset: (std::mem::size_of::<f32>() * 3) as u64,
+                shader_location: 1,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: (std::mem::size_of::<f32>() * 5) as u64,
+                shader_location: 2,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Uint32x2,
+                offset: (std::mem::size_of::<f32>() * 8) as u64,
+                shader_location: 3,
             },
         ],
     }
@@ -820,11 +958,54 @@ fn debug_vertex_bytes<'a>(
     Ok(bytes)
 }
 
+fn foliage_vertex_bytes<'a>(
+    cards: impl Iterator<Item = &'a FoliageCard>,
+) -> Result<Vec<u8>, String> {
+    let card_list = cards.collect::<Vec<_>>();
+    let capacity = card_list
+        .len()
+        .checked_mul(6)
+        .and_then(|vertices| vertices.checked_mul(FOLIAGE_VERTEX_STRIDE))
+        .ok_or_else(|| String::from("foliage vertex buffer overflow"))?;
+    let mut bytes = Vec::with_capacity(capacity);
+
+    for card in card_list {
+        for vertex in triangulate_card(card) {
+            bytes.extend_from_slice(&vertex.position.x.to_le_bytes());
+            bytes.extend_from_slice(&vertex.position.y.to_le_bytes());
+            bytes.extend_from_slice(&vertex.position.z.to_le_bytes());
+            bytes.extend_from_slice(&vertex.uv[0].to_le_bytes());
+            bytes.extend_from_slice(&vertex.uv[1].to_le_bytes());
+            bytes.extend_from_slice(&vertex.normal.x.to_le_bytes());
+            bytes.extend_from_slice(&vertex.normal.y.to_le_bytes());
+            bytes.extend_from_slice(&vertex.normal.z.to_le_bytes());
+            bytes.extend_from_slice(&vertex.packed_material_params[0].to_le_bytes());
+            bytes.extend_from_slice(&vertex.packed_material_params[1].to_le_bytes());
+        }
+    }
+
+    Ok(bytes)
+}
+
+fn triangulate_card(card: &FoliageCard) -> [wr_render_api::FoliageCardVertex; 6] {
+    [
+        card.vertices[0],
+        card.vertices[1],
+        card.vertices[2],
+        card.vertices[0],
+        card.vertices[2],
+        card.vertices[3],
+    ]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    use wr_render_api::{DebugVertex, LinearColor, RenderPassNode, ScenePrimitive, Vec3};
+    use wr_render_api::{
+        DebugVertex, FoliageCard, FoliageCardVertex, LinearColor, RenderPassNode, ScenePrimitive,
+        Vec3,
+    };
 
     struct DummyFactory;
 
@@ -876,6 +1057,32 @@ mod tests {
         ]);
         let mut scene = ExtractedRenderScene::new(ColorRgba8::new(12, 18, 24, 255));
         scene.push_primitive(ScenePrimitive::DebugTriangle(triangle));
+        scene.push_primitive(ScenePrimitive::FoliageCard(FoliageCard::new([
+            FoliageCardVertex::new(
+                Vec3::new(-0.35, -0.15, 0.02),
+                [0.0, 0.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [0xA0607040, 0x0000C080],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(0.35, -0.15, 0.02),
+                [1.0, 0.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [0xA0607040, 0x0000C080],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(0.35, 0.55, 0.02),
+                [1.0, 1.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [0xA0607040, 0x0000C080],
+            ),
+            FoliageCardVertex::new(
+                Vec3::new(-0.35, 0.55, 0.02),
+                [0.0, 1.0],
+                Vec3::new(0.0, 0.0, 1.0),
+                [0xA0607040, 0x0000C080],
+            ),
+        ])));
         scene
     }
 
@@ -936,6 +1143,24 @@ mod tests {
         assert_eq!(image.width(), 96);
         assert_eq!(image.height(), 96);
         assert_ne!(center, [12, 18, 24, 255]);
+    }
+
+    #[test]
+    fn rendered_scene_png_contains_foliage_pixels() {
+        let temp = tempdir().expect("tempdir should exist");
+        let output_path = temp.path().join("foliage.png");
+        render_scene_to_png(
+            RenderSize::new(96, 96),
+            &sample_scene(),
+            &wr_render_api::debug_triangle_and_foliage_graph(),
+            &output_path,
+        )
+        .expect("scene render should succeed");
+
+        let image = image::open(&output_path).expect("png should load").into_rgba8();
+        let foliage_pixel = image.get_pixel(48, 28).0;
+
+        assert_ne!(foliage_pixel, [12, 18, 24, 255]);
     }
 
     #[test]
