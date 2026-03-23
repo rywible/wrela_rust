@@ -288,7 +288,8 @@ def main() -> int:
         if attempt_result["status"] not in {"completed_empty_output", "completed_invalid_output"}:
             break
 
-    assert attempt_result is not None
+    if attempt_result is None:
+        raise RuntimeError("Claude review wrapper did not execute any attempts.")
 
     status = attempt_result["status"]
     exit_code = attempt_result["exit_code"]

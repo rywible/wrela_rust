@@ -418,7 +418,8 @@ python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 60
   - `completed_invalid_output` means Claude exited 0 but did not return valid JSON output for the wrapper to parse.
   - `exit_nonzero` means the Claude CLI failed.
   - `timeout` means the 10-minute wall-clock budget expired.
-- `stdout.txt` remains the authoritative human-readable review text for compatibility with existing consumers. `raw_response.json` stores Claude's raw JSON payload for debugging.
+- `stdout.txt` remains the authoritative human-readable review text for compatibility with existing consumers. `raw_response.json` stores Claude's best-effort raw payload for debugging and may contain truncated or invalid JSON on failure paths.
+- Timeout runs may still leave partial text in `stdout.txt`; treat that as debugging context only, not as a successful review.
 - Empirical note for this repo: direct branch review works better in non-interactive mode than `--from-pr` or very large diff-fed prompts, which may stall.
 
 ### 11.5 Bootstrap verification exception
