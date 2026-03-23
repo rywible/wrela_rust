@@ -19,3 +19,4 @@ path = "src/lib.rs"
 [dependencies]
 wr_core.workspace = true
 wr_game.workspace = true
+wr_platform.workspace = true

@@ -1,6 +1,6 @@
 # PR-006 - Platform shell, input abstraction, and fixed-step app loop
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Core Runtime
 - Depends on: PR-000, PR-002
