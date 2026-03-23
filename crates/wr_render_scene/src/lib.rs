@@ -1,9 +1,14 @@
 #![forbid(unsafe_code)]
 
+mod redwood_debug;
 mod terrain_debug;
 
 use wr_core::{CrateBoundary, CrateEntryPoint};
 
+pub use redwood_debug::{
+    CanonicalRedwoodForestDebugScene, RedwoodForestDebugOverlayConfig,
+    build_redwood_forest_debug_scene, canonical_redwood_forest_debug_scene,
+};
 pub use terrain_debug::{
     CanonicalTerrainDebugScene, TerrainDebugOverlayConfig, build_terrain_debug_scene,
     canonical_hero_terrain_debug_scene,

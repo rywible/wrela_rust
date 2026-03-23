@@ -1,6 +1,6 @@
 # PR-016 - Procedural bark, trunk, and branch mesh generation with LODs
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-015, PR-010, PR-011
@@ -33,4 +33,4 @@ Convert tree graphs into meshable trunk/branch geometry that still feels authore
 - None.
 
 ## Completion Workflow
-- When this task is completed and its implementation PR is opened, move this file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in that same PR.
+- Completed in implementation PR for `PR-016`; task file moved from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` with the landing change.

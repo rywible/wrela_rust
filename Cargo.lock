@@ -5054,9 +5054,11 @@ dependencies = [
 name = "wr_procgeo"
 version = "0.1.0"
 dependencies = [
+ "criterion",
  "insta",
  "proptest",
  "serde",
+ "serde_json",
  "wr_core",
  "wr_math",
  "wr_world_gen",
