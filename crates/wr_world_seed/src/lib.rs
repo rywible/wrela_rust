@@ -401,6 +401,63 @@ mod tests {
         assert_ne!(baseline.seed_for_path("terrain"), overridden.seed_for_path("terrain"));
     }
 
+    #[test]
+    fn overriding_parent_branch_changes_child_branch_and_preserves_siblings() {
+        let root = RootSeed::parse_hex("0xDEADBEEF").expect("seed should parse");
+        let baseline = SeedGraph::standard(root, None).expect("graph should build");
+        let pack = SeedConfigPack::new(
+            "combat_override",
+            BTreeMap::from([("combat".to_owned(), "0xF00DFACE".to_owned())]),
+        )
+        .expect("pack should validate");
+        let overridden = SeedGraph::standard(root, Some(&pack)).expect("graph should build");
+
+        for path in ["terrain", "ecology", "trees", "wraiths", "vfx"] {
+            assert_eq!(
+                baseline.seed_for_path(path),
+                overridden.seed_for_path(path),
+                "sibling branch `{path}` should remain stable when combat is overridden"
+            );
+        }
+
+        assert_ne!(baseline.seed_for_path("combat"), overridden.seed_for_path("combat"));
+        assert_ne!(
+            baseline.seed_for_path("combat.scenarios"),
+            overridden.seed_for_path("combat.scenarios")
+        );
+    }
+
+    #[test]
+    fn same_seed_and_config_pack_produce_identical_generated_stats() {
+        let root = RootSeed::parse_hex("0xDEADBEEF").expect("seed should parse");
+        let pack = SeedConfigPack::new(
+            "duel_focus",
+            BTreeMap::from([("combat.scenarios".to_owned(), "0xC0FFEE01".to_owned())]),
+        )
+        .expect("pack should validate");
+        let first = sample_generation_stats(
+            &SeedGraph::standard(root, Some(&pack)).expect("graph should build"),
+        );
+        let second = sample_generation_stats(
+            &SeedGraph::standard(root, Some(&pack)).expect("graph should build"),
+        );
+
+        assert_eq!(first, second);
+    }
+
+    fn sample_generation_stats(graph: &SeedGraph) -> BTreeMap<String, u64> {
+        graph
+            .derivations
+            .iter()
+            .map(|derivation| {
+                let mut rng = SeedRng::new(
+                    graph.seed_for_path(&derivation.path).expect("seed path should exist"),
+                );
+                (derivation.path.clone(), rng.next_u64())
+            })
+            .collect()
+    }
+
     proptest! {
         #[test]
         fn standard_seed_graph_has_unique_and_stable_paths(root in any::<u64>()) {

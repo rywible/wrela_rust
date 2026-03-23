@@ -66,11 +66,19 @@ pub fn compose_game_runtime(
 }
 
 pub fn run_headless_scenario(scenario: &ScenarioRequest) -> HeadlessScenarioSummary {
-    run_headless_scenario_with_tweak_pack(scenario, None)
+    run_headless_scenario_with_config_packs(scenario, None, None)
 }
 
 pub fn run_headless_scenario_with_tweak_pack(
     scenario: &ScenarioRequest,
+    tweak_pack: Option<&TweakPack>,
+) -> HeadlessScenarioSummary {
+    run_headless_scenario_with_config_packs(scenario, None, tweak_pack)
+}
+
+pub fn run_headless_scenario_with_config_packs(
+    scenario: &ScenarioRequest,
+    seed_config_pack: Option<&SeedConfigPack>,
     tweak_pack: Option<&TweakPack>,
 ) -> HeadlessScenarioSummary {
     let seed = match RootSeed::parse_hex(&scenario.seed.value_hex) {
@@ -86,7 +94,7 @@ pub fn run_headless_scenario_with_tweak_pack(
             );
         }
     };
-    let report_seed = build_report_seed_info(&scenario.seed, seed);
+    let report_seed = build_report_seed_info(&scenario.seed, seed, seed_config_pack);
 
     let actor_spawns = scenario
         .spawned_actors
@@ -364,9 +372,14 @@ fn finalize_summary(
     HeadlessScenarioSummary { report_seed, result, metrics, assertions, determinism_hash, notes }
 }
 
-fn build_report_seed_info(seed: &SeedInfo, root: RootSeed) -> SeedInfo {
+fn build_report_seed_info(
+    seed: &SeedInfo,
+    root: RootSeed,
+    seed_config_pack: Option<&SeedConfigPack>,
+) -> SeedInfo {
     let default_pack = SeedConfigPack::named("default").expect("default seed config pack is valid");
-    let graph = SeedGraph::standard(root, Some(&default_pack))
+    let pack = seed_config_pack.unwrap_or(&default_pack);
+    let graph = SeedGraph::standard(root, Some(pack))
         .expect("default seed graph should build for a parsed root seed");
 
     SeedInfo {
@@ -403,6 +416,8 @@ fn build_report_seed_info(seed: &SeedInfo, root: RootSeed) -> SeedInfo {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use super::*;
 
     fn test_scenario(assertions: Vec<ScenarioAssertion>) -> ScenarioRequest {
@@ -558,5 +573,27 @@ mod tests {
         assert_eq!(summary.report_seed.derivations.len(), 7);
         assert_eq!(summary.assertions.len(), 1);
         assert!(summary.assertions[0].passed);
+    }
+
+    #[test]
+    fn run_headless_scenario_with_seed_config_pack_reports_non_default_pack() {
+        let scenario = test_scenario(Vec::new());
+        let seed_config_pack = SeedConfigPack::new(
+            "combat_variant",
+            BTreeMap::from([("combat".to_owned(), "0xF00DFACE".to_owned())]),
+        )
+        .expect("seed config pack should validate");
+
+        let summary =
+            run_headless_scenario_with_config_packs(&scenario, Some(&seed_config_pack), None);
+
+        assert_eq!(summary.result.status, HarnessStatus::Passed);
+        assert_eq!(
+            summary.report_seed.config_pack.as_ref().map(|pack| pack.name.as_str()),
+            Some("combat_variant")
+        );
+        assert!(summary.report_seed.config_pack.as_ref().is_some_and(|pack| {
+            pack.overrides.iter().any(|override_info| override_info.path == "combat")
+        }));
     }
 }
