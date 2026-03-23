@@ -1,14 +1,19 @@
 #![forbid(unsafe_code)]
 
-use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack};
+use wr_core::{CrateBoundary, CrateEntryPoint, SeedConfigPack, TweakPack};
 use wr_ecs::{
     EcsRuntime, GamePlugin, HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput,
+};
+use wr_telemetry::{
+    SeedConfigOverrideInfo, SeedConfigPackInfo, SeedDerivationInfo, SeedDerivationMode, SeedInfo,
 };
 use wr_tools_harness::{
     FailureKind, HarnessStatus, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS, ScenarioAssertion,
     ScenarioAssertionResult, ScenarioExecutionMetrics, ScenarioRequest,
 };
-use wr_world_seed::{RootSeed, stable_hash_hex};
+use wr_world_seed::{
+    RootSeed, SeedDerivationMode as WorldSeedDerivationMode, SeedGraph, stable_hash_hex,
+};
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_game", CrateBoundary::Composition, true)
@@ -42,6 +47,7 @@ pub const fn scaffold_members() -> [CrateEntryPoint; 21] {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct HeadlessScenarioSummary {
+    pub report_seed: SeedInfo,
     pub result: ResultEnvelope,
     pub metrics: ScenarioExecutionMetrics,
     pub assertions: Vec<ScenarioAssertionResult>,
@@ -72,6 +78,7 @@ pub fn run_headless_scenario_with_tweak_pack(
         Err(error) => {
             return failed_summary(
                 scenario,
+                scenario.seed.clone(),
                 0,
                 0,
                 Vec::new(),
@@ -79,6 +86,7 @@ pub fn run_headless_scenario_with_tweak_pack(
             );
         }
     };
+    let report_seed = build_report_seed_info(&scenario.seed, seed);
 
     let actor_spawns = scenario
         .spawned_actors
@@ -105,6 +113,7 @@ pub fn run_headless_scenario_with_tweak_pack(
     {
         return failed_summary(
             scenario,
+            report_seed.clone(),
             0,
             0,
             Vec::new(),
@@ -125,6 +134,7 @@ pub fn run_headless_scenario_with_tweak_pack(
             AssertionEvaluation::Failed(details) => {
                 return finalize_summary(
                     scenario,
+                    report_seed.clone(),
                     &world,
                     assertions,
                     ResultEnvelope {
@@ -148,6 +158,7 @@ pub fn run_headless_scenario_with_tweak_pack(
     match evaluate_assertions(&world, final_assertions, &mut assertions) {
         AssertionEvaluation::Continue => finalize_summary(
             scenario,
+            report_seed,
             &world,
             assertions,
             ResultEnvelope {
@@ -163,6 +174,7 @@ pub fn run_headless_scenario_with_tweak_pack(
         ),
         AssertionEvaluation::Failed(details) => finalize_summary(
             scenario,
+            report_seed,
             &world,
             assertions,
             ResultEnvelope {
@@ -275,6 +287,7 @@ fn compare_metric(
 
 fn failed_summary(
     scenario: &ScenarioRequest,
+    report_seed: SeedInfo,
     frames_simulated: u32,
     applied_input_count: u32,
     assertions: Vec<ScenarioAssertionResult>,
@@ -295,6 +308,7 @@ fn failed_summary(
     ]);
 
     HeadlessScenarioSummary {
+        report_seed,
         result: ResultEnvelope {
             status: HarnessStatus::Failed,
             summary: "Scenario could not be executed.".to_owned(),
@@ -312,6 +326,7 @@ fn failed_summary(
 
 fn finalize_summary(
     scenario: &ScenarioRequest,
+    report_seed: SeedInfo,
     world: &HeadlessScenarioWorld,
     assertions: Vec<ScenarioAssertionResult>,
     result: ResultEnvelope,
@@ -346,13 +361,49 @@ fn finalize_summary(
             .map(|record| record.into_bytes()),
     );
 
-    HeadlessScenarioSummary { result, metrics, assertions, determinism_hash, notes }
+    HeadlessScenarioSummary { report_seed, result, metrics, assertions, determinism_hash, notes }
+}
+
+fn build_report_seed_info(seed: &SeedInfo, root: RootSeed) -> SeedInfo {
+    let default_pack = SeedConfigPack::named("default").expect("default seed config pack is valid");
+    let graph = SeedGraph::standard(root, Some(&default_pack))
+        .expect("default seed graph should build for a parsed root seed");
+
+    SeedInfo {
+        label: seed.label.clone(),
+        value_hex: root.to_hex(),
+        stream: seed.stream.clone(),
+        derivations: graph
+            .derivations
+            .iter()
+            .map(|derivation| SeedDerivationInfo {
+                path: derivation.path.clone(),
+                label: derivation.label.clone(),
+                parent_path: derivation.parent_path.clone(),
+                value_hex: derivation.value_hex.clone(),
+                mode: match derivation.mode {
+                    WorldSeedDerivationMode::Derived => SeedDerivationMode::Derived,
+                    WorldSeedDerivationMode::Override => SeedDerivationMode::Override,
+                },
+            })
+            .collect(),
+        config_pack: Some(SeedConfigPackInfo {
+            name: graph.config_pack_name,
+            overrides: graph
+                .overrides
+                .iter()
+                .map(|override_info| SeedConfigOverrideInfo {
+                    path: override_info.path.clone(),
+                    value_hex: override_info.value_hex.clone(),
+                })
+                .collect(),
+        }),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wr_telemetry::SeedInfo;
 
     fn test_scenario(assertions: Vec<ScenarioAssertion>) -> ScenarioRequest {
         ScenarioRequest {
@@ -467,6 +518,7 @@ mod tests {
         let summary = run_headless_scenario(&scenario);
 
         assert_eq!(summary.result.status, HarnessStatus::Failed);
+        assert_eq!(summary.report_seed.value_hex, "not-a-hex-seed");
         assert_eq!(summary.metrics.frames_simulated, 0);
         assert_eq!(summary.metrics.applied_input_count, 0);
         assert!(
@@ -499,6 +551,11 @@ mod tests {
         let summary = run_headless_scenario_with_tweak_pack(&scenario, Some(&pack));
 
         assert_eq!(summary.result.status, HarnessStatus::Passed);
+        assert_eq!(
+            summary.report_seed.config_pack.as_ref().map(|pack| pack.name.as_str()),
+            Some("default")
+        );
+        assert_eq!(summary.report_seed.derivations.len(), 7);
         assert_eq!(summary.assertions.len(), 1);
         assert!(summary.assertions[0].passed);
     }

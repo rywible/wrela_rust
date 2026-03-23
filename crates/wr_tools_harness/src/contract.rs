@@ -679,7 +679,10 @@ mod tests {
     use proptest::collection::vec;
     use proptest::option;
     use proptest::prelude::*;
-    use wr_telemetry::{PlatformMetadata, RunMetadata, RunTimestamps};
+    use wr_telemetry::{
+        PlatformMetadata, RunMetadata, RunTimestamps, SeedConfigPackInfo, SeedDerivationInfo,
+        SeedDerivationMode,
+    };
 
     use super::*;
 
@@ -714,8 +717,63 @@ mod tests {
     fn canonical_seed() -> SeedInfo {
         SeedInfo {
             label: "hero_forest".to_owned(),
-            value_hex: "0xDEADBEEF".to_owned(),
+            value_hex: "0x00000000DEADBEEF".to_owned(),
             stream: Some("bootstrap".to_owned()),
+            derivations: vec![
+                SeedDerivationInfo {
+                    path: "terrain".to_owned(),
+                    label: "terrain".to_owned(),
+                    parent_path: None,
+                    value_hex: "0xCA379F03C759982C".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "ecology".to_owned(),
+                    label: "ecology".to_owned(),
+                    parent_path: None,
+                    value_hex: "0x517C4643CB4ED25D".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "trees".to_owned(),
+                    label: "trees".to_owned(),
+                    parent_path: None,
+                    value_hex: "0x630977A9CD5352E4".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "wraiths".to_owned(),
+                    label: "wraiths".to_owned(),
+                    parent_path: None,
+                    value_hex: "0xBAB04A6CF613F1E5".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "combat".to_owned(),
+                    label: "combat".to_owned(),
+                    parent_path: None,
+                    value_hex: "0xA1F72785A5203293".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "combat.scenarios".to_owned(),
+                    label: "scenarios".to_owned(),
+                    parent_path: Some("combat".to_owned()),
+                    value_hex: "0x737AC269DCA5170A".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+                SeedDerivationInfo {
+                    path: "vfx".to_owned(),
+                    label: "vfx".to_owned(),
+                    parent_path: None,
+                    value_hex: "0x3D55A2CCF0A62AA9".to_owned(),
+                    mode: SeedDerivationMode::Derived,
+                },
+            ],
+            config_pack: Some(SeedConfigPackInfo {
+                name: "default".to_owned(),
+                overrides: Vec::new(),
+            }),
         }
     }
 

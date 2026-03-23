@@ -50,6 +50,14 @@ fn startup_scenario_cli_writes_valid_terminal_report() {
 
     assert_eq!(report.result.status, HarnessStatus::Passed);
     assert_eq!(report.scenario_path, "scenarios/smoke/startup.ron");
+    assert_eq!(report.seed.value_hex, "0x00000000DEADBEEF");
+    assert_eq!(report.seed.derivations.len(), 7);
+    assert_eq!(report.seed.config_pack.as_ref().map(|pack| pack.name.as_str()), Some("default"));
+    assert!(
+        report.seed.derivations.iter().any(|derivation| derivation.path == "combat.scenarios"
+            && derivation.parent_path.as_deref() == Some("combat")),
+        "scenario reports should include the stable sub-seed derivation tree"
+    );
     assert_eq!(report.metrics.frames_simulated, 16);
     assert_eq!(report.metrics.spawned_actor_count, 2);
     assert_eq!(report.assertions.len(), 3);

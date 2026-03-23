@@ -3,6 +3,7 @@
 This directory holds architecture documents that explain how the current repo shape maps to the planned runtime.
 
 - `harness_contract.md` explains the machine-readable harness request/report contract.
+- `seed_graph.md` explains the deterministic root seed topology, named seed config packs, and report metadata flow.
 - `agent_daemon.md` explains the local-only HTTP daemon, job model, and subprocess wrapper rules.
 - `ecs_runtime.md` explains the Bevy ECS schedule spine, built-in system sets, and plugin registration model.
 - `headless_scenario_runner.md` explains the deterministic no-window scenario execution flow.
