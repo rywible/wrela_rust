@@ -42,3 +42,6 @@ wr_client.workspace = true
 wr_headless.workspace = true
 wr_agentd.workspace = true
 xtask.workspace = true
+bevy_ecs.workspace = true
+image.workspace = true
+tempfile.workspace = true
