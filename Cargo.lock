@@ -5147,6 +5147,7 @@ dependencies = [
  "insta",
  "proptest",
  "serde",
+ "tracing",
  "wr_core",
  "wr_math",
  "wr_world_seed",

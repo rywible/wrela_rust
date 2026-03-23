@@ -1,10 +1,12 @@
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
+use tracing::{Level, debug};
 use wr_core::{CrateBoundary, CrateEntryPoint};
-use wr_math::{FractalNoise2, Vec2, clamp01, lerp, smootherstep01};
+use wr_math::{FractalNoise2, Vec2, clamp01, inverse_lerp, lerp, smootherstep01};
 use wr_world_seed::RootSeed;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -125,6 +127,7 @@ pub struct TerrainScalarFieldSet {
 impl TerrainScalarFieldSet {
     pub fn generate(seed: RootSeed, config: TerrainFieldConfig) -> Result<Self, TerrainFieldError> {
         let config = config.validate()?;
+        let started = tracing::enabled!(Level::DEBUG).then(Instant::now);
         let sampler = TerrainSampler::new(seed, config);
         let resolution = usize::from(config.cache_resolution);
         let mut samples = Vec::with_capacity(resolution * resolution);
@@ -140,7 +143,19 @@ impl TerrainScalarFieldSet {
             }
         }
 
-        Ok(Self { seed_hex: seed.to_hex(), config, samples })
+        let seed_hex = seed.to_hex();
+        if let Some(started) = started {
+            debug!(
+                seed_hex = %seed_hex,
+                cache_resolution = config.cache_resolution,
+                width_m = config.width_m,
+                height_m = config.height_m,
+                duration_ms = started.elapsed().as_secs_f64() * 1000.0,
+                "generated terrain scalar field cache",
+            );
+        }
+
+        Ok(Self { seed_hex, config, samples })
     }
 
     pub fn seed_hex(&self) -> &str {
@@ -255,9 +270,11 @@ impl TerrainScalarFieldSet {
     fn sample_field_normalized(&self, field: TerrainFieldKind, point: Vec2) -> f32 {
         let value = self.sample_field(field, point);
         match field {
-            TerrainFieldKind::Height => {
-                clamp01((value - self.config.height_base_m) / self.config.height_variation_m)
-            }
+            TerrainFieldKind::Height => clamp01(inverse_lerp(
+                self.config.height_base_m,
+                self.config.height_base_m + self.config.height_variation_m,
+                value,
+            )),
             _ => clamp01(value),
         }
     }

@@ -34,6 +34,11 @@ pub fn lerp(start: f32, end: f32, t: f32) -> f32 {
     start + ((end - start) * t)
 }
 
+pub fn inverse_lerp(start: f32, end: f32, value: f32) -> f32 {
+    let range = end - start;
+    if range.abs() <= f32::EPSILON { 0.0 } else { (value - start) / range }
+}
+
 pub fn smootherstep01(value: f32) -> f32 {
     let t = clamp01(value);
     t * t * t * (t * ((t * 6.0) - 15.0) + 10.0)
@@ -92,7 +97,10 @@ fn value_noise01(seed: u64, point: Vec2, frequency: f32) -> f32 {
 }
 
 fn lattice_value(seed: u64, x: i32, y: i32) -> f32 {
-    let hashed = mix_seed(seed, ((x as i64) as u64).rotate_left(17) ^ ((y as i64) as u64));
+    let hashed = mix_seed(
+        mix_seed(seed, (x as i64) as u64),
+        ((y as i64) as u64).wrapping_mul(0xD6E8_FEB8_6659_FD93),
+    );
     // Use the top 24 bits as a stable mantissa-sized bucket and normalize to [0, 1].
     ((hashed >> 40) as f32) / ((1_u64 << 24) - 1) as f32
 }

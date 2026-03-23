@@ -18,6 +18,7 @@ wr_core.workspace = true
 wr_math.workspace = true
 wr_world_seed.workspace = true
 serde.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 criterion.workspace = true
