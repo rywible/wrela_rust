@@ -1,6 +1,6 @@
 # PR-009 - Telemetry, metrics, and profiler plumbing
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Core Runtime
 - Depends on: PR-002, PR-006, PR-007

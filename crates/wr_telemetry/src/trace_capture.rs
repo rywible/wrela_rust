@@ -42,6 +42,8 @@ impl TraceCapture {
             return Ok(None);
         }
 
+        // The current headless runtime stays on one thread, so a thread-local default subscriber
+        // captures the full scenario trace. Revisit this if worker-thread tracing is introduced.
         let path = path.as_ref().to_path_buf();
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;

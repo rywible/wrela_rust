@@ -353,6 +353,8 @@ fn normalize_scenario_report(mut report: Value) -> Value {
         .and_then(|metrics| metrics.get_mut("telemetry_summary"))
         .and_then(Value::as_object_mut)
     {
+        // Timing telemetry is observational, so daemon/CLI parity normalizes volatile slices and
+        // keeps comparing the stable contract fields that should match exactly.
         telemetry_summary.remove("frame_samples");
         telemetry_summary.remove("frame_time_ms");
         telemetry_summary.remove("sim_time_ms");

@@ -57,7 +57,7 @@ pub struct HeadlessScenarioSummary {
     pub metrics: ScenarioExecutionMetrics,
     pub assertions: Vec<ScenarioAssertionResult>,
     pub determinism_hash: String,
-    pub telemetry_summary: ScenarioTelemetrySummary,
+    pub telemetry_summary_artifact: ScenarioTelemetrySummary,
     pub notes: Option<Vec<String>>,
 }
 
@@ -102,6 +102,7 @@ pub fn run_headless_scenario_with_telemetry(
     telemetry_config: &TelemetryConfig,
 ) -> HeadlessScenarioSummary {
     let mut telemetry = ScenarioTelemetryRecorder::new(telemetry_config.clone());
+    // Keep the profiler session alive for the full run when Tracy is enabled.
     let profiler_session = match ProfilerSession::start(telemetry_config) {
         Ok(session) => session,
         Err(error) => {
@@ -176,6 +177,7 @@ pub fn run_headless_scenario_with_telemetry(
 
     for frame in 0..scenario.fixed_steps {
         let _frame_span = info_span!("scenario_frame", frame).entered();
+        // Wall-clock timings are observational only and never feed gameplay state or determinism.
         let frame_started = Instant::now();
         let sim_started = Instant::now();
         world.apply_inputs(scripted_inputs.iter().filter(|input| input.frame == frame));
@@ -380,7 +382,7 @@ fn failed_summary(
         spawned_actor_count: scenario.spawned_actors.len() as u32,
         scripted_input_count: scenario.scripted_inputs.len() as u32,
         applied_input_count,
-        telemetry_summary: Some(telemetry_summary.clone()),
+        telemetry_summary: Some(telemetry_summary.compact_for_report()),
     };
     let determinism_hash = stable_hash_hex([
         scenario.seed.value_hex.as_bytes(),
@@ -399,7 +401,7 @@ fn failed_summary(
         metrics,
         assertions,
         determinism_hash,
-        telemetry_summary,
+        telemetry_summary_artifact: telemetry_summary,
         notes: Some(vec![
             "Execution failed before the fixed-step simulation completed.".to_owned(),
         ]),
@@ -422,7 +424,7 @@ fn finalize_summary(
         spawned_actor_count: world.actor_count(),
         scripted_input_count: scenario.scripted_inputs.len() as u32,
         applied_input_count: world.applied_input_count(),
-        telemetry_summary: Some(telemetry_summary.clone()),
+        telemetry_summary: Some(telemetry_summary.compact_for_report()),
     };
     let determinism_hash = stable_hash_hex(
         world
@@ -451,7 +453,7 @@ fn finalize_summary(
         metrics,
         assertions,
         determinism_hash,
-        telemetry_summary,
+        telemetry_summary_artifact: telemetry_summary,
         notes,
     }
 }

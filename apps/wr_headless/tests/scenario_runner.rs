@@ -69,10 +69,10 @@ fn startup_scenario_cli_writes_valid_terminal_report() {
         report.metrics.telemetry_summary.as_ref().is_some_and(|summary| {
             summary.tracing_enabled
                 && summary.metrics_enabled
-                && summary.frame_samples.len() == 16
+                && summary.frame_samples.is_empty()
                 && summary.memory_bytes.max >= summary.memory_bytes.min
         }),
-        "scenario telemetry should capture per-frame samples and aggregate memory counters"
+        "terminal reports should embed only the compact telemetry summary"
     );
     assert!(
         report.artifacts.iter().any(|artifact| artifact
@@ -127,15 +127,7 @@ fn same_scenario_and_seed_produce_identical_determinism_hashes() {
 
     assert_eq!(first_report.determinism_hash, second_report.determinism_hash);
     assert_eq!(first_report.assertions, second_report.assertions);
-    assert_eq!(first_report.metrics.frames_requested, second_report.metrics.frames_requested);
-    assert_eq!(first_report.metrics.frames_simulated, second_report.metrics.frames_simulated);
-    assert_eq!(first_report.metrics.simulation_rate_hz, second_report.metrics.simulation_rate_hz);
-    assert_eq!(first_report.metrics.spawned_actor_count, second_report.metrics.spawned_actor_count);
-    assert_eq!(
-        first_report.metrics.scripted_input_count,
-        second_report.metrics.scripted_input_count
-    );
-    assert_eq!(first_report.metrics.applied_input_count, second_report.metrics.applied_input_count);
+    assert_matching_deterministic_metrics(&first_report, &second_report);
     let first_telemetry = first_report
         .metrics
         .telemetry_summary
@@ -149,6 +141,10 @@ fn same_scenario_and_seed_produce_identical_determinism_hashes() {
     assert_eq!(first_telemetry.frame_count, second_telemetry.frame_count);
     assert_eq!(first_telemetry.entity_count, second_telemetry.entity_count);
     assert_eq!(first_telemetry.memory_bytes, second_telemetry.memory_bytes);
+    assert!(
+        first_telemetry.frame_samples.is_empty() && second_telemetry.frame_samples.is_empty(),
+        "terminal reports should keep full per-frame samples in the dedicated metrics artifact"
+    );
 }
 
 #[test]
@@ -185,4 +181,19 @@ fn failing_assertion_still_writes_terminal_report() {
             .is_some_and(|details| details.contains("world.actor_count")),
         "the failure detail should identify the failing metric"
     );
+}
+
+fn assert_matching_deterministic_metrics(
+    first_report: &ScenarioExecutionReport,
+    second_report: &ScenarioExecutionReport,
+) {
+    assert_eq!(first_report.metrics.frames_requested, second_report.metrics.frames_requested);
+    assert_eq!(first_report.metrics.frames_simulated, second_report.metrics.frames_simulated);
+    assert_eq!(first_report.metrics.simulation_rate_hz, second_report.metrics.simulation_rate_hz);
+    assert_eq!(first_report.metrics.spawned_actor_count, second_report.metrics.spawned_actor_count);
+    assert_eq!(
+        first_report.metrics.scripted_input_count,
+        second_report.metrics.scripted_input_count
+    );
+    assert_eq!(first_report.metrics.applied_input_count, second_report.metrics.applied_input_count);
 }

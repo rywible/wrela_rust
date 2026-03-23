@@ -222,7 +222,7 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
         &options.output_root,
         &layout,
         METRICS_SUMMARY_FILENAME,
-        &summary.telemetry_summary,
+        &summary.telemetry_summary_artifact,
     )
     .map_err(|error| format!("failed to write metrics summary: {error}"))?;
     artifacts.push(ArtifactDescriptor {
@@ -322,11 +322,11 @@ fn failure_summary(summary: &str, details: String) -> HeadlessScenarioSummary {
             spawned_actor_count: 0,
             scripted_input_count: 0,
             applied_input_count: 0,
-            telemetry_summary: Some(disabled_telemetry_summary()),
+            telemetry_summary: Some(disabled_telemetry_summary().compact_for_report()),
         },
         assertions: Vec::new(),
         determinism_hash: "0x0000000000000000".to_owned(),
-        telemetry_summary: disabled_telemetry_summary(),
+        telemetry_summary_artifact: disabled_telemetry_summary(),
         notes: Some(vec![
             "A terminal report was still emitted so automation can classify the failure."
                 .to_owned(),

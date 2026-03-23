@@ -52,10 +52,10 @@ pub struct TimingSummary {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema, Default)]
 pub struct CountSummary {
-    pub min: u32,
-    pub max: u32,
+    pub min: u64,
+    pub max: u64,
     pub average: f32,
-    pub last: u32,
+    pub last: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -103,15 +103,25 @@ impl ScenarioTelemetryRecorder {
             render_time_ms: summarize_f32(
                 self.frame_samples.iter().map(|sample| sample.render_time_ms),
             ),
-            draw_count: summarize_u32(self.frame_samples.iter().map(|sample| sample.draw_count)),
-            entity_count: summarize_u32(
-                self.frame_samples.iter().map(|sample| sample.entity_count),
+            draw_count: summarize_u64(
+                self.frame_samples.iter().map(|sample| sample.draw_count as u64),
             ),
-            memory_bytes: summarize_u32(self.frame_samples.iter().map(|sample| {
-                u32::try_from(sample.memory.estimated_total_bytes).unwrap_or(u32::MAX)
-            })),
+            entity_count: summarize_u64(
+                self.frame_samples.iter().map(|sample| sample.entity_count as u64),
+            ),
+            memory_bytes: summarize_u64(
+                self.frame_samples.iter().map(|sample| sample.memory.estimated_total_bytes),
+            ),
             frame_samples: self.frame_samples,
         }
+    }
+}
+
+impl ScenarioTelemetrySummary {
+    pub fn compact_for_report(&self) -> Self {
+        let mut compact = self.clone();
+        compact.frame_samples.clear();
+        compact
     }
 }
 
@@ -137,7 +147,7 @@ fn summarize_f32(values: impl IntoIterator<Item = f32>) -> TimingSummary {
     }
 }
 
-fn summarize_u32(values: impl IntoIterator<Item = u32>) -> CountSummary {
+fn summarize_u64(values: impl IntoIterator<Item = u64>) -> CountSummary {
     let values = values.into_iter().collect::<Vec<_>>();
     if values.is_empty() {
         return CountSummary::default();
@@ -146,7 +156,7 @@ fn summarize_u32(values: impl IntoIterator<Item = u32>) -> CountSummary {
     let min = values.iter().copied().min().unwrap_or_default();
     let max = values.iter().copied().max().unwrap_or_default();
     let last = *values.last().unwrap_or(&0);
-    let sum = values.iter().copied().map(f64::from).sum::<f64>();
+    let sum = values.iter().copied().map(|value| value as f64).sum::<f64>();
 
     CountSummary { min, max, average: (sum / values.len() as f64) as f32, last }
 }
@@ -198,5 +208,6 @@ mod tests {
         assert_eq!(summary.frame_time_ms.max_ms, 2.0);
         assert_eq!(summary.entity_count.last, 2);
         assert_eq!(summary.memory_bytes.max, 384);
+        assert!(summary.compact_for_report().frame_samples.is_empty());
     }
 }
