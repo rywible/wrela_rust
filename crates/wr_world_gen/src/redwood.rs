@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::time::Instant;
+use tracing::{Level, debug};
 use wr_math::{Vec2, clamp01, lerp};
 use wr_world_seed::{RootSeed, stable_hash_u64_bytes};
 
@@ -139,6 +141,8 @@ impl RedwoodForestGraphSet {
         config: RedwoodForestGraphConfig,
     ) -> Result<Self, RedwoodForestGraphError> {
         let config = config.validate()?;
+        // Timing is debug-only observability and never feeds deterministic outputs.
+        let started = tracing::enabled!(Level::DEBUG).then(Instant::now);
         let field_config = fields.config();
         let placement_config = placements.config();
         if !approx_eq(config.width_m, field_config.width_m)
@@ -172,6 +176,15 @@ impl RedwoodForestGraphSet {
         }
 
         let report = RedwoodForestGraphReport::from_trees(root_seed, config, &trees);
+        if let Some(started) = started {
+            debug!(
+                seed_hex = %root_seed.to_hex(),
+                tree_count = trees.len(),
+                total_nodes = report.total_nodes,
+                duration_ms = started.elapsed().as_secs_f64() * 1000.0,
+                "generated redwood forest graph set",
+            );
+        }
         Ok(Self { seed_hex: root_seed.to_hex(), config, trees, report })
     }
 
@@ -578,7 +591,7 @@ fn generate_tree_graph(
         let new_node = RedwoodNode {
             id: nodes.len(),
             parent_index: Some(parent_index),
-            depth: (segment + 1) as u16,
+            depth: depth_from_index(segment + 1),
             position: RedwoodPoint3 {
                 x_m: root_position.x_m + ((position.x - root_position.x_m) * lateral_scale),
                 y_m: root_position.y_m + ((position.y - root_position.y_m) * lateral_scale),
@@ -873,7 +886,7 @@ fn seed_crown_flares(
 
 fn push_child(nodes: &mut Vec<RedwoodNode>, parent_index: usize, position: RedwoodVec3) -> usize {
     let child_index = nodes.len();
-    let depth = nodes[parent_index].depth + 1;
+    let depth = nodes[parent_index].depth.saturating_add(1);
     nodes[parent_index].children.push(child_index);
     nodes.push(RedwoodNode {
         id: child_index,
@@ -917,7 +930,13 @@ fn unit_hash01(seed: RootSeed, label: &str, index: u32) -> f32 {
     let mut bytes = seed.derive_stream_u64(label).to_be_bytes().to_vec();
     bytes.extend_from_slice(&index.to_be_bytes());
     let hash = stable_hash_u64_bytes(bytes);
+    // We intentionally keep the inclusive `[0, 1]` mapping because sibling generators in this
+    // repo do the same top-24-bit normalization for deterministic stability.
     ((hash >> 40) as f32) / ((1_u64 << 24) - 1) as f32
+}
+
+fn depth_from_index(index: usize) -> u16 {
+    index.min(usize::from(u16::MAX)) as u16
 }
 
 fn dominant_path(tree: &RedwoodTreeGraph) -> Vec<usize> {
