@@ -8,8 +8,6 @@ use wr_world_seed::{RootSeed, stable_hash_u64_bytes};
 use crate::{
     HERO_BIOME_HEIGHT_METERS, HERO_BIOME_WIDTH_METERS, TerrainFieldSample, TerrainScalarFieldSet,
 };
-
-const TRUNK_KIND_INDEX: usize = 0;
 const DEBUG_MAP_INTENSITY_STEP: u16 = 48;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -204,7 +202,9 @@ pub struct EcologicalPlacement {
     pub orientation_radians: f32,
     pub sampled_height_m: f32,
     pub sampled_slope: f32,
+    pub sampled_drainage: f32,
     pub sampled_moisture: f32,
+    pub sampled_fog: f32,
     pub sampled_canopy_opportunity: f32,
     pub sampled_deadfall_probability: f32,
     pub sampled_hero_path_bias: f32,
@@ -246,8 +246,12 @@ impl EcologicalPlacementSet {
         for kind in EcologicalPlacementKind::ALL {
             let spec = config.spec(kind);
             let candidates = generate_candidates(root_seed, fields, config, spec);
-            let solve =
-                select_candidates(config, spec, &candidates, &accepted_by_kind[TRUNK_KIND_INDEX]);
+            let solve = select_candidates(
+                config,
+                spec,
+                &candidates,
+                &accepted_by_kind[EcologicalPlacementKind::Trunk.as_index()],
+            );
 
             for placement in &solve.accepted {
                 accepted_by_kind[kind.as_index()].push(placement.clone());
@@ -365,7 +369,9 @@ pub struct EcologicalPlacementSummary {
     pub fill_ratio: f32,
     pub mean_suitability: f32,
     pub mean_sampled_slope: f32,
+    pub mean_sampled_drainage: f32,
     pub mean_sampled_moisture: f32,
+    pub mean_sampled_fog: f32,
     pub mean_sampled_canopy_opportunity: f32,
     pub mean_sampled_deadfall_probability: f32,
     pub mean_sampled_hero_path_bias: f32,
@@ -471,7 +477,9 @@ fn generate_candidates(
                     orientation_radians,
                     sampled_height_m: sample.height_m,
                     sampled_slope: sample.slope,
+                    sampled_drainage: sample.drainage,
                     sampled_moisture: sample.moisture,
+                    sampled_fog: sample.fog,
                     sampled_canopy_opportunity: sample.canopy_opportunity,
                     sampled_deadfall_probability: sample.deadfall_probability,
                     sampled_hero_path_bias: sample.hero_path_bias,
@@ -554,7 +562,9 @@ fn build_summary(
     let accepted_count = accepted.len();
     let mut mean_suitability = 0.0;
     let mut mean_sampled_slope = 0.0;
+    let mut mean_sampled_drainage = 0.0;
     let mut mean_sampled_moisture = 0.0;
+    let mut mean_sampled_fog = 0.0;
     let mut mean_sampled_canopy_opportunity = 0.0;
     let mut mean_sampled_deadfall_probability = 0.0;
     let mut mean_sampled_hero_path_bias = 0.0;
@@ -562,7 +572,9 @@ fn build_summary(
     for placement in accepted {
         mean_suitability += placement.suitability;
         mean_sampled_slope += placement.sampled_slope;
+        mean_sampled_drainage += placement.sampled_drainage;
         mean_sampled_moisture += placement.sampled_moisture;
+        mean_sampled_fog += placement.sampled_fog;
         mean_sampled_canopy_opportunity += placement.sampled_canopy_opportunity;
         mean_sampled_deadfall_probability += placement.sampled_deadfall_probability;
         mean_sampled_hero_path_bias += placement.sampled_hero_path_bias;
@@ -582,7 +594,9 @@ fn build_summary(
         },
         mean_suitability: mean_suitability / normalization,
         mean_sampled_slope: mean_sampled_slope / normalization,
+        mean_sampled_drainage: mean_sampled_drainage / normalization,
         mean_sampled_moisture: mean_sampled_moisture / normalization,
+        mean_sampled_fog: mean_sampled_fog / normalization,
         mean_sampled_canopy_opportunity: mean_sampled_canopy_opportunity / normalization,
         mean_sampled_deadfall_probability: mean_sampled_deadfall_probability / normalization,
         mean_sampled_hero_path_bias: mean_sampled_hero_path_bias / normalization,
@@ -854,7 +868,9 @@ mod tests {
               "fill_ratio": 1.0,
               "mean_suitability": 0.77081,
               "mean_sampled_slope": 0.07009226,
+              "mean_sampled_drainage": 0.6060538,
               "mean_sampled_moisture": 0.58969194,
+              "mean_sampled_fog": 0.5491599,
               "mean_sampled_canopy_opportunity": 0.7822945,
               "mean_sampled_deadfall_probability": 0.40611455,
               "mean_sampled_hero_path_bias": 0.0011992807,
@@ -872,7 +888,9 @@ mod tests {
               "fill_ratio": 1.0,
               "mean_suitability": 0.711784,
               "mean_sampled_slope": 0.11227583,
+              "mean_sampled_drainage": 0.6235077,
               "mean_sampled_moisture": 0.6068769,
+              "mean_sampled_fog": 0.5719839,
               "mean_sampled_canopy_opportunity": 0.7238746,
               "mean_sampled_deadfall_probability": 0.4413516,
               "mean_sampled_hero_path_bias": 0.006690436,
@@ -890,7 +908,9 @@ mod tests {
               "fill_ratio": 1.0,
               "mean_suitability": 0.4776375,
               "mean_sampled_slope": 0.14982416,
+              "mean_sampled_drainage": 0.59719825,
               "mean_sampled_moisture": 0.5815284,
+              "mean_sampled_fog": 0.5433886,
               "mean_sampled_canopy_opportunity": 0.7226017,
               "mean_sampled_deadfall_probability": 0.45229352,
               "mean_sampled_hero_path_bias": 0.007940113,
@@ -978,7 +998,7 @@ mod tests {
     }
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(16))]
+        #![proptest_config(ProptestConfig::with_cases(32))]
 
         #[test]
         fn major_placements_respect_forbidden_corridor_and_slope(seed in any::<u64>()) {
@@ -1044,5 +1064,18 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn mismatched_field_dimensions_are_rejected() {
+        let seed = RootSeed::parse_hex("0xDEADBEEF").expect("seed should parse");
+        let fields =
+            TerrainScalarFieldSet::generate(seed, canonical_field_config()).expect("field set");
+        let config = EcologicalPlacementConfig {
+            width_m: HERO_BIOME_WIDTH_METERS - 1.0,
+            ..canonical_placement_config()
+        };
+
+        assert!(EcologicalPlacementSet::generate(seed, &fields, config).is_err());
     }
 }
