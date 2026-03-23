@@ -33,3 +33,7 @@ harness = false
 [[bench]]
 name = "ecological_placements"
 harness = false
+
+[[bench]]
+name = "redwood_tree_graphs"
+harness = false

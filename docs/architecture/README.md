@@ -9,6 +9,7 @@ This directory holds architecture documents that explain how the current repo sh
 - `ecs_runtime.md` explains the Bevy ECS schedule spine, built-in system sets, and plugin registration model.
 - `headless_scenario_runner.md` explains the deterministic no-window scenario execution flow.
 - `platform_shell.md` explains the bootstrap `winit` client shell, input action map, fixed-step loop, and manual smoke checklist.
+- `redwood_tree_graphs.md` explains the graph-first redwood growth pass, its space-colonization knobs, and its debug outputs.
 - `terrain_mesh_collision.md` explains the chunked terrain mesh, deterministic triangulation, static collision bake, and debug-scene bridge.
 - `terrain_scalar_fields.md` explains the deterministic hero-biome field cache, debug dumps, and overlay surface.
 - `verification_stack.md` explains the repo-standard `cargo xtask verify` workflow, artifacts, and toolchain choices.
