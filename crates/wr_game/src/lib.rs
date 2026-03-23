@@ -321,3 +321,137 @@ fn finalize_summary(
 
     HeadlessScenarioSummary { result, metrics, assertions, determinism_hash, notes }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wr_telemetry::SeedInfo;
+
+    fn test_scenario(assertions: Vec<ScenarioAssertion>) -> ScenarioRequest {
+        ScenarioRequest {
+            schema_version: wr_tools_harness::HARNESS_SCHEMA_VERSION.to_owned(),
+            scenario_path: "scenarios/smoke/startup.ron".to_owned(),
+            simulation_rate_hz: 60,
+            fixed_steps: 1,
+            seed: SeedInfo::new("hero_forest", "0xDEADBEEF"),
+            spawned_actors: vec![wr_tools_harness::ScenarioActorSpawn {
+                actor_id: "player".to_owned(),
+                actor_kind: "player_sword".to_owned(),
+                seed_stream: Some("player".to_owned()),
+            }],
+            scripted_inputs: Vec::new(),
+            assertions,
+        }
+    }
+
+    fn test_world() -> HeadlessScenarioWorld {
+        HeadlessScenarioWorld::new(
+            60,
+            RootSeed::parse_hex("0xDEADBEEF").expect("seed should parse"),
+            &[HeadlessActorSpawn {
+                actor_id: "player".to_owned(),
+                actor_kind: "player_sword".to_owned(),
+                seed_stream: Some("player".to_owned()),
+            }],
+        )
+    }
+
+    fn test_assertion(
+        metric: &str,
+        comparator: &str,
+        expected: f32,
+        tolerance: Option<f32>,
+    ) -> ScenarioAssertion {
+        ScenarioAssertion {
+            frame: Some(0),
+            metric: metric.to_owned(),
+            comparator: comparator.to_owned(),
+            expected,
+            tolerance,
+        }
+    }
+
+    #[test]
+    fn compare_metric_supports_declared_comparators() {
+        let cases = [
+            ("eq", 1.05, 1.0, Some(0.05), true),
+            ("ne", 1.2, 1.0, Some(0.1), true),
+            ("gt", 2.0, 1.0, None, true),
+            ("gte", 1.0, 1.0, None, true),
+            ("lt", 0.5, 1.0, None, true),
+            ("lte", 1.0, 1.0, None, true),
+            ("eq", 1.2, 1.0, Some(0.05), false),
+        ];
+
+        for (comparator, actual, expected, tolerance, passed) in cases {
+            let assertion =
+                test_assertion("world.frames_simulated", comparator, expected, tolerance);
+            let outcome = compare_metric(actual, &assertion, 0);
+
+            assert_eq!(outcome.passed, passed, "comparator {comparator} should match expectation");
+
+            if passed {
+                assert_eq!(
+                    outcome.details, None,
+                    "passing comparator {comparator} should not report details"
+                );
+            } else {
+                assert!(
+                    outcome.details.as_deref().is_some_and(
+                        |details| details.contains("expected to equal 1 within tolerance 0.05")
+                    ),
+                    "failing comparator {comparator} should explain the mismatch"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn evaluate_assertions_stops_at_first_failure() {
+        let mut world = test_world();
+        world.step(0);
+
+        let assertions = [
+            test_assertion("world.actor_count", "eq", 1.0, Some(0.0)),
+            test_assertion("world.frames_simulated", "eq", 2.0, Some(0.0)),
+            test_assertion("world.actor_count", "eq", 1.0, Some(0.0)),
+        ];
+        let mut records = Vec::new();
+
+        let outcome = evaluate_assertions(&world, assertions.iter(), &mut records);
+
+        assert!(matches!(outcome, AssertionEvaluation::Failed(_)));
+        assert_eq!(records.len(), 2, "evaluation should stop after the first failure");
+        assert!(records[0].passed, "the first assertion should pass");
+        assert!(!records[1].passed, "the second assertion should fail");
+        assert_eq!(records[1].metric, "world.frames_simulated");
+        assert!(
+            records[1].details.as_deref().is_some_and(|details| details.contains("observed 1"))
+        );
+    }
+
+    #[test]
+    fn run_headless_scenario_reports_bad_seed_before_simulation() {
+        let scenario = test_scenario(Vec::new());
+        let scenario =
+            ScenarioRequest { seed: SeedInfo::new("hero_forest", "not-a-hex-seed"), ..scenario };
+
+        let summary = run_headless_scenario(&scenario);
+
+        assert_eq!(summary.result.status, HarnessStatus::Failed);
+        assert_eq!(summary.metrics.frames_simulated, 0);
+        assert_eq!(summary.metrics.applied_input_count, 0);
+        assert!(
+            summary
+                .result
+                .details
+                .as_deref()
+                .is_some_and(|details| details.contains("failed to parse root seed"))
+        );
+        assert!(summary.notes.as_ref().is_some_and(|notes| {
+            notes
+                .iter()
+                .any(|note| note.contains("failed before the fixed-step simulation completed"))
+        }));
+    }
+}

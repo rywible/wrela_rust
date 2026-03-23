@@ -31,6 +31,8 @@ The current contract includes:
 
 Assertions with a `frame` are evaluated immediately after that frame's fixed step. Assertions without a `frame` are evaluated once the run completes. The runner stops at the first failing assertion and still writes `terminal_report.json`.
 
+That means `frame: 0` sees the world after the first fixed step has completed, not the pre-simulation state.
+
 ## Execution flow
 
 The current no-window path is:
@@ -63,3 +65,5 @@ That report carries:
 - stable artifact paths.
 
 The deterministic hash is the main bootstrap proof that repeated runs of the same scenario and seed stayed identical even though timestamps and run IDs differ across executions.
+
+Run metadata timestamps are intentionally ambient observability fields and are excluded from the determinism hash. For fully reproducible artifact paths, callers should pass an explicit `--run-id` instead of relying on the timestamp-derived default.
