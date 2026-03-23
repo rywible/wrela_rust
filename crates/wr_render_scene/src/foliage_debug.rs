@@ -171,6 +171,8 @@ impl ForestProjector {
         let terrain_bounds = terrain.stats().bounds;
         let mesh_bounds = forest_mesh.report().lods[RedwoodMeshLodTier::Hero.as_index()].bounds;
         let foliage_bounds = foliage.report().lods[RedwoodMeshLodTier::Hero.as_index()].bounds;
+        // Terrain meshes are stored as [x, height, depth] while tree and foliage bounds report
+        // [x, depth, height]. Keep the axis swap local and documented in this projector.
         Self {
             min_x: terrain_bounds.min[0].min(mesh_bounds.min[0]).min(foliage_bounds.min[0]),
             min_y: terrain_bounds.min[2].min(mesh_bounds.min[1]).min(foliage_bounds.min[1]),

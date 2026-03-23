@@ -1,6 +1,6 @@
 # PR-017 - Procedural foliage clusters, canopy cards, and material functions
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-015, PR-016, PR-010

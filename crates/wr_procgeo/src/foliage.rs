@@ -5,6 +5,7 @@ use wr_world_gen::{RedwoodForestGraphSet, RedwoodNode, RedwoodPoint3, RedwoodTre
 use crate::{RedwoodMeshAabb, RedwoodMeshLodTier};
 
 const PACK_SCALE_8BIT: f32 = 255.0;
+const MAX_REPORT_TREES: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RedwoodFoliageBuildConfig {
@@ -185,7 +186,7 @@ pub struct RedwoodFoliageLodReport {
     pub max_card_half_extent_m: [f32; 2],
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedwoodFoliageLod {
     pub lod: RedwoodMeshLodTier,
     pub clusters: Vec<RedwoodFoliageCluster>,
@@ -199,7 +200,7 @@ pub struct RedwoodFoliageTreeReport {
     pub lods: [RedwoodFoliageLodReport; 3],
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct RedwoodFoliageTree {
     pub tree_index: usize,
     pub lods: [RedwoodFoliageLod; 3],
@@ -217,6 +218,7 @@ pub struct RedwoodForestFoliageReport {
     pub seed_hex: String,
     pub tree_count: usize,
     pub total_tip_clusters: usize,
+    pub trees_truncated: bool,
     pub budget: RedwoodFoliageBudget,
     pub within_budget: bool,
     pub lods: [RedwoodFoliageLodReport; 3],
@@ -289,32 +291,32 @@ impl RedwoodForestFoliageReport {
             seed_hex,
             tree_count: trees.len(),
             total_tip_clusters,
+            trees_truncated: trees.len() > MAX_REPORT_TREES,
             budget,
             within_budget: false,
             lods,
-            trees: trees.iter().take(12).map(|tree| tree.report).collect(),
+            trees: trees.iter().take(MAX_REPORT_TREES).map(|tree| tree.report).collect(),
         };
 
         Self { within_budget: budget.within(&provisional), ..provisional }
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RedwoodFoliageBuildError {
-    InvalidConfig,
+    InvalidConfig(String),
 }
 
 impl RedwoodFoliageBuildError {
     fn invalid_config(message: impl Into<String>) -> Self {
-        let _ = message.into();
-        Self::InvalidConfig
+        Self::InvalidConfig(message.into())
     }
 }
 
 impl std::fmt::Display for RedwoodFoliageBuildError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidConfig => write!(f, "invalid foliage build config"),
+            Self::InvalidConfig(message) => write!(f, "invalid foliage build config: {message}"),
         }
     }
 }
@@ -601,6 +603,10 @@ fn point3_to_vec3(point: RedwoodPoint3) -> Vec3 {
 }
 
 fn include_bounds(bounds: &mut RedwoodMeshAabb, position: [f32; 3]) {
+    debug_assert!(
+        position.iter().all(|component| component.is_finite()),
+        "foliage bounds received a non-finite position: {position:?}"
+    );
     if !position.iter().all(|component| component.is_finite()) {
         return;
     }
@@ -753,6 +759,7 @@ mod tests {
             "seed_hex": report.seed_hex,
             "tree_count": report.tree_count,
             "total_tip_clusters": report.total_tip_clusters,
+            "trees_truncated": report.trees_truncated,
             "within_budget": report.within_budget,
             "lods": report.lods.iter().map(|lod| {
                 serde_json::json!({
@@ -900,6 +907,7 @@ mod tests {
               "tree_index": 2
             }
           ],
+          "trees_truncated": true,
           "within_budget": true
         }
         "#);
@@ -951,6 +959,13 @@ mod tests {
                 RedwoodFoliageBuildConfig::default(),
             )
             .expect("foliage should build");
+            let foliage_again = RedwoodForestFoliageSet::build(
+                &graphs,
+                RedwoodFoliageBuildConfig::default(),
+            )
+            .expect("foliage should deterministically rebuild");
+
+            prop_assert_eq!(foliage.report(), foliage_again.report());
 
             for tree in foliage.trees() {
                 for lod in RedwoodMeshLodTier::ALL {
