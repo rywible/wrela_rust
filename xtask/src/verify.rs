@@ -662,6 +662,8 @@ fn write_verify_bundle_at(
             label: "verification_stack".to_owned(),
             value_hex: "0x00000000".to_owned(),
             stream: Some("repo-automation".to_owned()),
+            derivations: Vec::new(),
+            config_pack: None,
         },
         result,
         suites,

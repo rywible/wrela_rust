@@ -1,6 +1,6 @@
 # PR-008 - Deterministic seed graph, RNG, and config packs
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Core Runtime
 - Depends on: PR-000, PR-002

@@ -20,8 +20,56 @@
   },
   "seed": {
     "label": "hero_forest",
-    "value_hex": "0xDEADBEEF",
-    "stream": "bootstrap"
+    "value_hex": "0x00000000DEADBEEF",
+    "stream": "bootstrap",
+    "derivations": [
+      {
+        "path": "terrain",
+        "label": "terrain",
+        "value_hex": "0xCA379F03C759982C",
+        "mode": "derived"
+      },
+      {
+        "path": "ecology",
+        "label": "ecology",
+        "value_hex": "0x517C4643CB4ED25D",
+        "mode": "derived"
+      },
+      {
+        "path": "trees",
+        "label": "trees",
+        "value_hex": "0x630977A9CD5352E4",
+        "mode": "derived"
+      },
+      {
+        "path": "wraiths",
+        "label": "wraiths",
+        "value_hex": "0xBAB04A6CF613F1E5",
+        "mode": "derived"
+      },
+      {
+        "path": "combat",
+        "label": "combat",
+        "value_hex": "0xA1F72785A5203293",
+        "mode": "derived"
+      },
+      {
+        "path": "combat.scenarios",
+        "label": "scenarios",
+        "parent_path": "combat",
+        "value_hex": "0x737AC269DCA5170A",
+        "mode": "derived"
+      },
+      {
+        "path": "vfx",
+        "label": "vfx",
+        "value_hex": "0x3D55A2CCF0A62AA9",
+        "mode": "derived"
+      }
+    ],
+    "config_pack": {
+      "name": "default"
+    }
   },
   "result": {
     "status": "passed",

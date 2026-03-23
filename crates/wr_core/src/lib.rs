@@ -1,7 +1,13 @@
 #![forbid(unsafe_code)]
 
+mod config_packs;
 mod tweaks;
 
+pub use config_packs::{
+    SEED_CONFIG_PACK_SCHEMA_VERSION, SeedConfigPack, SeedConfigPackError,
+    load_seed_config_pack_ron, parse_seed_config_pack_ron, serialize_seed_config_pack_ron,
+    write_seed_config_pack_ron,
+};
 pub use tweaks::{
     TWEAK_PACK_SCHEMA_VERSION, TweakDefinition, TweakError, TweakNamespace, TweakPack,
     TweakRegistry, TweakRegistryEntry, TweakValue, TweakValueKind, default_tweak_definitions,

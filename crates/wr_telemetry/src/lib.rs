@@ -36,16 +36,56 @@ pub struct RunTimestamps {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SeedDerivationMode {
+    Derived,
+    Override,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SeedDerivationInfo {
+    pub path: String,
+    pub label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub parent_path: Option<String>,
+    pub value_hex: String,
+    pub mode: SeedDerivationMode,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SeedConfigOverrideInfo {
+    pub path: String,
+    pub value_hex: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub struct SeedConfigPackInfo {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub overrides: Vec<SeedConfigOverrideInfo>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub struct SeedInfo {
     pub label: String,
     pub value_hex: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derivations: Vec<SeedDerivationInfo>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config_pack: Option<SeedConfigPackInfo>,
 }
 
 impl SeedInfo {
     pub fn new(label: impl Into<String>, value_hex: impl Into<String>) -> Self {
-        Self { label: label.into(), value_hex: value_hex.into(), stream: None }
+        Self {
+            label: label.into(),
+            value_hex: value_hex.into(),
+            stream: None,
+            derivations: Vec::new(),
+            config_pack: None,
+        }
     }
 }
 

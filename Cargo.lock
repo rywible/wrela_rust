@@ -4423,6 +4423,9 @@ dependencies = [
 name = "wr_world_seed"
 version = "0.1.0"
 dependencies = [
+ "insta",
+ "proptest",
+ "serde",
  "wr_core",
 ]
 

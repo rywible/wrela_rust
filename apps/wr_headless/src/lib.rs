@@ -108,7 +108,7 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     let git_sha = current_git_sha().unwrap_or_else(|_| String::from("<unknown>"));
 
     let load_result = load_scenario_request_ron(&options.scenario_path);
-    let (seed, scenario_path, tweak_pack_path, summary, notes) = match load_result {
+    let (_raw_seed, scenario_path, tweak_pack_path, summary, notes) = match load_result {
         Ok(scenario) => {
             if let Err(error) =
                 validate_declared_scenario_path(&options.scenario_path, &scenario.scenario_path)
@@ -157,6 +157,8 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
                 label: "unknown".to_owned(),
                 value_hex: "0x0000000000000000".to_owned(),
                 stream: Some("load_failure".to_owned()),
+                derivations: Vec::new(),
+                config_pack: None,
             },
             options.scenario_path.to_string_lossy().into_owned(),
             None,
@@ -200,7 +202,7 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     let report = ScenarioExecutionReport {
         schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
         metadata,
-        seed,
+        seed: summary.report_seed,
         scenario_path,
         result: summary.result.clone(),
         metrics: summary.metrics,
@@ -266,6 +268,13 @@ fn normalize_relative_path(path: &Path) -> PathBuf {
 
 fn failure_summary(summary: &str, details: String) -> HeadlessScenarioSummary {
     HeadlessScenarioSummary {
+        report_seed: SeedInfo {
+            label: "unknown".to_owned(),
+            value_hex: "0x0000000000000000".to_owned(),
+            stream: Some("load_failure".to_owned()),
+            derivations: Vec::new(),
+            config_pack: None,
+        },
         result: ResultEnvelope {
             status: HarnessStatus::Failed,
             summary: summary.to_owned(),
