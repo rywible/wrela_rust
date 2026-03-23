@@ -605,6 +605,8 @@ fn nearest_spacing_stats(placements: &[EcologicalPlacement]) -> (f32, f32) {
         return (0.0, 0.0);
     }
 
+    // Reports compute this once per solve, so an O(n^2) pass keeps the bootstrap implementation
+    // simple and inspectable at current density targets.
     let mut total = 0.0;
     let mut min_spacing = f32::INFINITY;
     for (index, placement) in placements.iter().enumerate() {
@@ -726,23 +728,22 @@ impl PlacementSpatialIndex {
     fn has_neighbor_within(&self, point: Vec2, radius_m: f32) -> bool {
         let cell_radius = (radius_m / self.cell_size_m).ceil() as i32;
         let (column, row) = self.bucket_coordinates(point);
+        let max_column = self.columns.saturating_sub(1) as i32;
+        let max_row = self.rows.saturating_sub(1) as i32;
         let radius_sq = radius_m * radius_m;
 
         for delta_row in -cell_radius..=cell_radius {
             let current_row = row + delta_row;
-            if current_row < 0 {
+            if !(0..=max_row).contains(&current_row) {
                 continue;
             }
             for delta_column in -cell_radius..=cell_radius {
                 let current_column = column + delta_column;
-                if current_column < 0 {
+                if !(0..=max_column).contains(&current_column) {
                     continue;
                 }
                 let bucket_index =
                     self.bucket_index_from_grid(current_column as usize, current_row as usize);
-                if bucket_index >= self.buckets.len() {
-                    continue;
-                }
                 if self.buckets[bucket_index].iter().any(|neighbor| {
                     let dx = point.x - neighbor.x;
                     let dy = point.y - neighbor.y;
