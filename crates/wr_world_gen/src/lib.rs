@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod ecology;
+mod redwood;
 
 use std::collections::BTreeMap;
 use std::time::Instant;
@@ -14,6 +15,7 @@ use wr_math::{
 use wr_world_seed::RootSeed;
 
 pub use ecology::*;
+pub use redwood::*;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_world_gen", CrateBoundary::Subsystem, false)

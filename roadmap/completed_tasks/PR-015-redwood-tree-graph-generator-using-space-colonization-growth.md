@@ -1,6 +1,6 @@
 # PR-015 - Redwood tree graph generator using space-colonization growth
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-014, PR-008
@@ -31,6 +31,3 @@ Generate the branching skeletons for hero redwoods from seed and growth paramete
 
 ## References
 - [Modeling Trees with a Space Colonization Algorithm](https://algorithmicbotany.org/papers/colonization.egwnp2007.pdf) - Primary tree-graph generation reference.
-
-## Completion Workflow
-- When this task is completed and its implementation PR is opened, move this file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in that same PR.
