@@ -93,6 +93,7 @@ fn value_noise01(seed: u64, point: Vec2, frequency: f32) -> f32 {
 
 fn lattice_value(seed: u64, x: i32, y: i32) -> f32 {
     let hashed = mix_seed(seed, ((x as i64) as u64).rotate_left(17) ^ ((y as i64) as u64));
+    // Use the top 24 bits as a stable mantissa-sized bucket and normalize to [0, 1].
     ((hashed >> 40) as f32) / ((1_u64 << 24) - 1) as f32
 }
 

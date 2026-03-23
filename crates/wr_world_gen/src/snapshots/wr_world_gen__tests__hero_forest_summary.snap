@@ -17,45 +17,45 @@ expression: fields.summary_report()
     },
     {
       "field": "slope",
-      "min": 0.0031916301,
+      "min": 0.00319163,
       "max": 0.34339315,
-      "mean": 0.09866889,
-      "stddev": 0.05336774
+      "mean": 0.09969764,
+      "stddev": 0.0532031
     },
     {
       "field": "drainage",
       "min": 0.37758902,
-      "max": 0.7709491,
-      "mean": 0.57695365,
-      "stddev": 0.07955445
+      "max": 0.7665719,
+      "mean": 0.57678884,
+      "stddev": 0.07951192
     },
     {
       "field": "moisture",
       "min": 0.31869543,
       "max": 0.7431052,
-      "mean": 0.55938244,
-      "stddev": 0.09103843
+      "mean": 0.55930674,
+      "stddev": 0.09102288
     },
     {
       "field": "fog",
       "min": 0.32693207,
-      "max": 0.72570384,
-      "mean": 0.525987,
-      "stddev": 0.08642423
+      "max": 0.72401774,
+      "mean": 0.5259236,
+      "stddev": 0.08640664
     },
     {
       "field": "canopy_opportunity",
       "min": 0.43694663,
-      "max": 0.8606649,
-      "mean": 0.7070845,
-      "stddev": 0.08579867
+      "max": 0.86043215,
+      "mean": 0.7067165,
+      "stddev": 0.08569127
     },
     {
       "field": "deadfall_probability",
       "min": 0.2439686,
       "max": 0.52983934,
-      "mean": 0.40729693,
-      "stddev": 0.043853156
+      "mean": 0.40761906,
+      "stddev": 0.043877784
     },
     {
       "field": "hero_path_bias",

@@ -1,6 +1,6 @@
 # PR-012 - Terrain scalar fields: height, slope, moisture, fog, canopy opportunity
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-008, PR-007

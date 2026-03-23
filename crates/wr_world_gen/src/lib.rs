@@ -68,6 +68,8 @@ impl TerrainFieldKind {
     }
 }
 
+const _: [(); FIELD_COUNT] = [(); TerrainFieldKind::ALL.len()];
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct TerrainFieldConfig {
     pub width_m: f32,
@@ -456,12 +458,7 @@ impl TerrainSampler {
 
     fn sample_direct(self, point: Vec2) -> TerrainFieldSample {
         let normalized = Vec2::new(point.x / self.config.width_m, point.y / self.config.height_m);
-        let landform = self.landform_noise.sample01(point);
-        let ridged = 1.0 - ((self.ridge_noise.sample01(point) * 2.0) - 1.0).abs();
-        let macro_rise = smootherstep01(normalized.y);
-        let shoulder = smootherstep01(1.0 - (normalized.x - 0.5).abs() * 1.5);
-        let height_normalized =
-            clamp01((landform * 0.58) + (ridged * 0.17) + (macro_rise * 0.15) + (shoulder * 0.10));
+        let height_normalized = self.height_normalized_at(point);
         let height_m =
             self.config.height_base_m + (height_normalized * self.config.height_variation_m);
 
@@ -515,23 +512,32 @@ impl TerrainSampler {
 
     fn slope(self, point: Vec2) -> f32 {
         let probe = self.config.slope_probe_m;
-        let x0 = self.height_only(Vec2::new((point.x - probe).max(0.0), point.y));
-        let x1 = self.height_only(Vec2::new((point.x + probe).min(self.config.width_m), point.y));
-        let y0 = self.height_only(Vec2::new(point.x, (point.y - probe).max(0.0)));
-        let y1 = self.height_only(Vec2::new(point.x, (point.y + probe).min(self.config.height_m)));
-        let gradient = (((x1 - x0).abs()) + ((y1 - y0).abs())) / (probe * 2.0);
+        let left_x = (point.x - probe).max(0.0);
+        let right_x = (point.x + probe).min(self.config.width_m);
+        let down_y = (point.y - probe).max(0.0);
+        let up_y = (point.y + probe).min(self.config.height_m);
+        let x0 = self.height_only(Vec2::new(left_x, point.y));
+        let x1 = self.height_only(Vec2::new(right_x, point.y));
+        let y0 = self.height_only(Vec2::new(point.x, down_y));
+        let y1 = self.height_only(Vec2::new(point.x, up_y));
+        let x_span = (right_x - left_x).max(f32::EPSILON);
+        let y_span = (up_y - down_y).max(f32::EPSILON);
+        let gradient = ((x1 - x0).abs() / x_span) + ((y1 - y0).abs() / y_span);
         clamp01(gradient / 2.8)
     }
 
     fn height_only(self, point: Vec2) -> f32 {
+        let height_normalized = self.height_normalized_at(point);
+        self.config.height_base_m + (height_normalized * self.config.height_variation_m)
+    }
+
+    fn height_normalized_at(self, point: Vec2) -> f32 {
         let normalized = Vec2::new(point.x / self.config.width_m, point.y / self.config.height_m);
         let landform = self.landform_noise.sample01(point);
         let ridged = 1.0 - ((self.ridge_noise.sample01(point) * 2.0) - 1.0).abs();
         let macro_rise = smootherstep01(normalized.y);
         let shoulder = smootherstep01(1.0 - (normalized.x - 0.5).abs() * 1.5);
-        let height_normalized =
-            clamp01((landform * 0.58) + (ridged * 0.17) + (macro_rise * 0.15) + (shoulder * 0.10));
-        self.config.height_base_m + (height_normalized * self.config.height_variation_m)
+        clamp01((landform * 0.58) + (ridged * 0.17) + (macro_rise * 0.15) + (shoulder * 0.10))
     }
 }
 
