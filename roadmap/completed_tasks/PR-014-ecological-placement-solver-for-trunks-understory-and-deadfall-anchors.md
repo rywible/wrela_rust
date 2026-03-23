@@ -1,6 +1,6 @@
 # PR-014 - Ecological placement solver for trunks, understory, and deadfall anchors
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-012
