@@ -3,7 +3,6 @@
 use std::collections::BTreeSet;
 
 use wr_core::{CrateBoundary, CrateEntryPoint};
-use wr_tools_harness::{ScenarioActorSpawn, ScriptedInput};
 use wr_world_seed::RootSeed;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -19,6 +18,20 @@ pub struct ScenarioActorState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadlessActorSpawn {
+    pub actor_id: String,
+    pub actor_kind: String,
+    pub seed_stream: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct HeadlessScriptedInput {
+    pub frame: u32,
+    pub action: String,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadlessScenarioWorld {
     simulation_rate_hz: u32,
     frames_simulated: u32,
@@ -29,7 +42,7 @@ pub struct HeadlessScenarioWorld {
 }
 
 impl HeadlessScenarioWorld {
-    pub fn new(simulation_rate_hz: u32, seed: RootSeed, actors: &[ScenarioActorSpawn]) -> Self {
+    pub fn new(simulation_rate_hz: u32, seed: RootSeed, actors: &[HeadlessActorSpawn]) -> Self {
         let actors = actors
             .iter()
             .map(|actor| {
@@ -57,24 +70,25 @@ impl HeadlessScenarioWorld {
     pub fn apply_inputs<'a>(
         &mut self,
         frame: u32,
-        inputs: impl IntoIterator<Item = &'a ScriptedInput>,
+        inputs: impl IntoIterator<Item = &'a HeadlessScriptedInput>,
     ) {
         for input in inputs {
             match input.state.as_str() {
                 "pressed" => {
                     self.active_actions.insert(input.action.clone());
+                    self.applied_input_count += 1;
+                    self.event_log.push(format!("frame={frame}:input:{}:pressed", input.action));
                 }
                 "released" => {
                     self.active_actions.remove(&input.action);
+                    self.applied_input_count += 1;
+                    self.event_log.push(format!("frame={frame}:input:{}:released", input.action));
                 }
                 other => {
                     self.event_log
                         .push(format!("frame={frame}:ignored_input:{}:{other}", input.action));
                 }
             }
-
-            self.applied_input_count += 1;
-            self.event_log.push(format!("frame={frame}:input:{}:{}", input.action, input.state));
         }
     }
 
@@ -127,5 +141,75 @@ impl HeadlessScenarioWorld {
         records.extend(self.active_actions.iter().map(|action| format!("active_action:{action}")));
         records.extend(self.event_log.iter().cloned());
         records
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_world() -> HeadlessScenarioWorld {
+        HeadlessScenarioWorld::new(
+            60,
+            RootSeed::parse_hex("0xDEADBEEF").expect("seed should parse"),
+            &[HeadlessActorSpawn {
+                actor_id: "player".to_owned(),
+                actor_kind: "player_sword".to_owned(),
+                seed_stream: Some("player".to_owned()),
+            }],
+        )
+    }
+
+    #[test]
+    fn ignored_inputs_do_not_increment_applied_input_count() {
+        let mut world = test_world();
+        let inputs = [HeadlessScriptedInput {
+            frame: 0,
+            action: "dash".to_owned(),
+            state: "unknown_state".to_owned(),
+        }];
+
+        world.apply_inputs(0, &inputs);
+
+        assert_eq!(world.applied_input_count(), 0);
+        assert_eq!(world.metric_value("world.applied_input_count"), Some(0.0));
+        assert!(
+            world
+                .deterministic_records()
+                .iter()
+                .any(|record| record.contains("ignored_input:dash:unknown_state"))
+        );
+        assert!(
+            !world
+                .deterministic_records()
+                .iter()
+                .any(|record| record == "frame=0:input:dash:unknown_state")
+        );
+    }
+
+    #[test]
+    fn unknown_metrics_return_none() {
+        let world = test_world();
+
+        assert_eq!(world.metric_value("world.unknown_metric"), None);
+    }
+
+    #[test]
+    fn deterministic_records_are_stable_for_identical_input_sequences() {
+        let mut first = test_world();
+        let mut second = test_world();
+        let inputs = [HeadlessScriptedInput {
+            frame: 0,
+            action: "light_attack".to_owned(),
+            state: "pressed".to_owned(),
+        }];
+
+        first.apply_inputs(0, &inputs);
+        first.step(0);
+
+        second.apply_inputs(0, &inputs);
+        second.step(0);
+
+        assert_eq!(first.deterministic_records(), second.deterministic_records());
     }
 }

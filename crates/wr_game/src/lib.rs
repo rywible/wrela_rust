@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 
 use wr_core::{CrateBoundary, CrateEntryPoint};
-use wr_ecs::HeadlessScenarioWorld;
+use wr_ecs::{HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput};
 use wr_tools_harness::{
     FailureKind, HarnessStatus, ResultEnvelope, ScenarioAssertion, ScenarioAssertionResult,
     ScenarioExecutionMetrics, ScenarioRequest,
@@ -61,15 +61,30 @@ pub fn run_headless_scenario(scenario: &ScenarioRequest) -> HeadlessScenarioSumm
         }
     };
 
-    let mut world =
-        HeadlessScenarioWorld::new(scenario.simulation_rate_hz, seed, &scenario.spawned_actors);
+    let actor_spawns = scenario
+        .spawned_actors
+        .iter()
+        .map(|actor| HeadlessActorSpawn {
+            actor_id: actor.actor_id.clone(),
+            actor_kind: actor.actor_kind.clone(),
+            seed_stream: actor.seed_stream.clone(),
+        })
+        .collect::<Vec<_>>();
+    let scripted_inputs = scenario
+        .scripted_inputs
+        .iter()
+        .map(|input| HeadlessScriptedInput {
+            frame: input.frame,
+            action: input.action.clone(),
+            state: input.state.clone(),
+        })
+        .collect::<Vec<_>>();
+
+    let mut world = HeadlessScenarioWorld::new(scenario.simulation_rate_hz, seed, &actor_spawns);
     let mut assertions = Vec::new();
 
     for frame in 0..scenario.fixed_steps {
-        world.apply_inputs(
-            frame,
-            scenario.scripted_inputs.iter().filter(|input| input.frame == frame),
-        );
+        world.apply_inputs(frame, scripted_inputs.iter().filter(|input| input.frame == frame));
         world.step(frame);
 
         let due_assertions =

@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use wr_core::{CrateBoundary, CrateEntryPoint};
 use wr_game::HeadlessScenarioSummary;
@@ -110,16 +110,27 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     let load_result = load_scenario_request_ron(&options.scenario_path);
     let (seed, scenario_path, summary, notes) = match load_result {
         Ok(scenario) => {
-            let summary = wr_game::run_headless_scenario(&scenario);
-            (
-                scenario.seed,
-                scenario.scenario_path,
-                summary,
-                Some(vec![format!(
-                    "Scenario source loaded from {}.",
-                    options.scenario_path.display()
-                )]),
-            )
+            if let Err(error) =
+                validate_declared_scenario_path(&options.scenario_path, &scenario.scenario_path)
+            {
+                (
+                    scenario.seed,
+                    options.scenario_path.to_string_lossy().into_owned(),
+                    load_failure_summary(error),
+                    None,
+                )
+            } else {
+                let summary = wr_game::run_headless_scenario(&scenario);
+                (
+                    scenario.seed,
+                    scenario.scenario_path,
+                    summary,
+                    Some(vec![format!(
+                        "Scenario source loaded from {}.",
+                        options.scenario_path.display()
+                    )]),
+                )
+            }
         }
         Err(error) => (
             SeedInfo {
@@ -179,6 +190,50 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     })
 }
 
+fn validate_declared_scenario_path(loaded_path: &Path, declared_path: &str) -> Result<(), String> {
+    let loaded = loaded_path.canonicalize().map_err(|error| {
+        format!("failed to canonicalize loaded scenario path `{}`: {error}", loaded_path.display())
+    })?;
+    let declared_path = Path::new(declared_path);
+    let declared = if declared_path.is_absolute() || declared_path.exists() {
+        declared_path.canonicalize().map_err(|error| {
+            format!(
+                "declared scenario_path `{}` could not be resolved: {error}",
+                declared_path.display()
+            )
+        })?
+    } else {
+        normalize_relative_path(declared_path)
+    };
+
+    if loaded == declared || (!declared.is_absolute() && loaded.ends_with(&declared)) {
+        Ok(())
+    } else {
+        Err(format!(
+            "declared scenario_path `{}` does not match loaded file `{}`",
+            declared.display(),
+            loaded_path.display()
+        ))
+    }
+}
+
+fn normalize_relative_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(value) => normalized.push(value),
+            Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
+        }
+    }
+
+    normalized
+}
+
 fn load_failure_summary(details: String) -> HeadlessScenarioSummary {
     HeadlessScenarioSummary {
         result: ResultEnvelope {
@@ -235,5 +290,40 @@ fn current_git_sha() -> Result<String, String> {
             .map_err(|error| format!("git rev-parse returned non-utf8 output: {error}"))
     } else {
         Err(String::from_utf8_lossy(&output.stderr).trim().to_owned())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use super::*;
+
+    #[test]
+    fn declared_scenario_path_must_match_loaded_file() {
+        let temp = tempfile::tempdir().expect("tempdir should be created");
+        let actual_path = temp.path().join("startup.ron");
+        let declared_path = temp.path().join("other.ron");
+
+        fs::write(&actual_path, "()\n").expect("actual file should be written");
+        fs::write(&declared_path, "()\n").expect("declared file should be written");
+
+        let error = validate_declared_scenario_path(&actual_path, &declared_path.to_string_lossy())
+            .expect_err("mismatched declared path should fail");
+
+        assert!(error.contains("does not match loaded file"));
+    }
+
+    #[test]
+    fn declared_scenario_path_accepts_same_file_with_relative_segments() {
+        let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .canonicalize()
+            .expect("workspace root should exist");
+        let loaded = workspace_root.join("scenarios/smoke/startup.ron");
+        let declared = "./scenarios/smoke/startup.ron";
+
+        validate_declared_scenario_path(&loaded, declared)
+            .expect("same file with relative segments should validate");
     }
 }

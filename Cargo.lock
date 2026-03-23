@@ -2599,7 +2599,6 @@ name = "wr_ecs"
 version = "0.1.0"
 dependencies = [
  "wr_core",
- "wr_tools_harness",
  "wr_world_seed",
 ]
 
