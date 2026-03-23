@@ -1,6 +1,6 @@
 # PR-007 - ECS world, schedules, and plugin composition model
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Core Runtime
 - Depends on: PR-000, PR-006
