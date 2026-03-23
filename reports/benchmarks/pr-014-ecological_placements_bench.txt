@@ -1,7 +1,7 @@
 PR-014 Ecological Placement Benchmark
 
 Command:
-`cargo bench -p wr_world_gen --bench ecological_placements -- --warm-up-time 0.01 --measurement-time 0.01`
+`cargo bench -p wr_world_gen --bench ecological_placements`
 
 Environment:
 - Date: 2026-03-23
@@ -12,10 +12,11 @@ Environment:
 
 Observed result:
 - `ecological_placements/solve_hero_biome_layout`
-- Time: `[4.9217 ms 4.9549 ms 4.9912 ms]`
+- Time: `[6.2675 ms 6.2813 ms 6.2952 ms]`
 
 Notes:
 - The benchmark isolates ecological placement solve time by reusing a pre-generated
   `TerrainScalarFieldSet`.
-- Criterion warned that the short measurement window could not fit 100 ideal samples; the
-  reported interval above is still the direct output from the measured run.
+- Criterion ran with the default warm-up and measurement windows (`3s` warm-up, estimated `5.5793s`
+  collection window for 100 samples), so this artifact is suitable as a regression reference for
+  follow-up PRs.

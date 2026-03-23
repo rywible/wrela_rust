@@ -10,6 +10,7 @@ use crate::{
 };
 
 const TRUNK_KIND_INDEX: usize = 0;
+const DEBUG_MAP_INTENSITY_STEP: u16 = 48;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -215,7 +216,7 @@ impl EcologicalPlacement {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct EcologicalPlacementSet {
     seed_hex: String,
     config: EcologicalPlacementConfig,
@@ -307,7 +308,7 @@ impl EcologicalPlacementSet {
                     self.config.height_m,
                     placement.position(),
                 );
-                let next = u16::from(map[index]) + 48;
+                let next = u16::from(map[index]) + DEBUG_MAP_INTENSITY_STEP;
                 map[index] = next.min(255) as u8;
             }
             maps.insert(format!("{}_occupancy", kind.as_str()), map);
@@ -443,17 +444,15 @@ fn generate_candidates(
     let columns = (config.width_m / cell_size).ceil() as u32;
     let rows = (config.height_m / cell_size).ceil() as u32;
     let jitter_span = cell_size * config.candidate_jitter_ratio;
-    let seed_bytes = root_seed.derive_stream_u64(spec.kind.jitter_label()).to_be_bytes();
-
     let mut candidates = Vec::with_capacity((columns as usize) * (rows as usize));
     for row in 0..rows {
         for column in 0..columns {
             let center_x = ((column as f32) + 0.5) * cell_size;
             let center_y = ((row as f32) + 0.5) * cell_size;
-            let jitter_x = signed_unit_hash(seed_bytes, spec.kind.jitter_label(), column, row, 0)
-                * jitter_span;
-            let jitter_y = signed_unit_hash(seed_bytes, spec.kind.jitter_label(), column, row, 1)
-                * jitter_span;
+            let jitter_x =
+                signed_unit_hash(root_seed, spec.kind.jitter_label(), column, row, 0) * jitter_span;
+            let jitter_y =
+                signed_unit_hash(root_seed, spec.kind.jitter_label(), column, row, 1) * jitter_span;
             let point = Vec2::new(center_x + jitter_x, center_y + jitter_y)
                 .clamp(Vec2::new(0.0, 0.0), Vec2::new(config.width_m, config.height_m));
             let sample = fields.sample(point);
@@ -664,18 +663,11 @@ fn quantized_map_index(resolution: u16, width_m: f32, height_m: f32, point: Vec2
 }
 
 fn unit_hash01(root_seed: RootSeed, label: &str, column: u32, row: u32, axis: u32) -> f32 {
-    let hash = hash_coordinate(root_seed, label, column, row, axis);
-    ((hash >> 40) as f32) / ((1_u64 << 24) - 1) as f32
+    unit_interval_from_hash(hash_coordinate(root_seed, label, column, row, axis))
 }
 
-fn signed_unit_hash(seed_bytes: [u8; 8], label: &str, column: u32, row: u32, axis: u32) -> f32 {
-    let mut bytes = Vec::with_capacity(seed_bytes.len() + label.len() + 12);
-    bytes.extend_from_slice(&seed_bytes);
-    bytes.extend_from_slice(label.as_bytes());
-    bytes.extend_from_slice(&column.to_be_bytes());
-    bytes.extend_from_slice(&row.to_be_bytes());
-    bytes.extend_from_slice(&axis.to_be_bytes());
-    (unit_interval_from_hash(stable_hash_u64_bytes(bytes)) * 2.0) - 1.0
+fn signed_unit_hash(root_seed: RootSeed, label: &str, column: u32, row: u32, axis: u32) -> f32 {
+    (unit_hash01(root_seed, label, column, row, axis) * 2.0) - 1.0
 }
 
 fn hash_coordinate(root_seed: RootSeed, label: &str, column: u32, row: u32, axis: u32) -> u64 {
@@ -859,17 +851,17 @@ mod tests {
               "target_count": 275,
               "accepted_count": 275,
               "fill_ratio": 1.0,
-              "mean_suitability": 0.77070725,
-              "mean_sampled_slope": 0.06891025,
-              "mean_sampled_moisture": 0.58816767,
-              "mean_sampled_canopy_opportunity": 0.7821604,
-              "mean_sampled_deadfall_probability": 0.40780848,
-              "mean_sampled_hero_path_bias": 0.0013765594,
-              "mean_nearest_spacing_m": 15.711999,
-              "min_nearest_spacing_m": 12.028552,
+              "mean_suitability": 0.77081,
+              "mean_sampled_slope": 0.07009226,
+              "mean_sampled_moisture": 0.58969194,
+              "mean_sampled_canopy_opportunity": 0.7822945,
+              "mean_sampled_deadfall_probability": 0.40611455,
+              "mean_sampled_hero_path_bias": 0.0011992807,
+              "mean_nearest_spacing_m": 15.748578,
+              "min_nearest_spacing_m": 12.02947,
               "rejected_forbidden_path": 0,
               "rejected_slope": 0,
-              "rejected_same_kind_spacing": 289,
+              "rejected_same_kind_spacing": 278,
               "rejected_trunk_competition": 0
             },
             {
@@ -877,36 +869,36 @@ mod tests {
               "target_count": 839,
               "accepted_count": 839,
               "fill_ratio": 1.0,
-              "mean_suitability": 0.71186775,
-              "mean_sampled_slope": 0.11385513,
-              "mean_sampled_moisture": 0.60635155,
-              "mean_sampled_canopy_opportunity": 0.723063,
-              "mean_sampled_deadfall_probability": 0.44153568,
-              "mean_sampled_hero_path_bias": 0.0069657243,
-              "mean_nearest_spacing_m": 6.507671,
-              "min_nearest_spacing_m": 5.502121,
+              "mean_suitability": 0.711784,
+              "mean_sampled_slope": 0.11227583,
+              "mean_sampled_moisture": 0.6068769,
+              "mean_sampled_canopy_opportunity": 0.7238746,
+              "mean_sampled_deadfall_probability": 0.4413516,
+              "mean_sampled_hero_path_bias": 0.006690436,
+              "mean_nearest_spacing_m": 6.488406,
+              "min_nearest_spacing_m": 5.5276413,
               "rejected_forbidden_path": 0,
               "rejected_slope": 0,
-              "rejected_same_kind_spacing": 921,
-              "rejected_trunk_competition": 72
+              "rejected_same_kind_spacing": 866,
+              "rejected_trunk_competition": 96
             },
             {
               "kind": "deadfall_anchor",
               "target_count": 197,
               "accepted_count": 197,
               "fill_ratio": 1.0,
-              "mean_suitability": 0.47875437,
-              "mean_sampled_slope": 0.15281382,
-              "mean_sampled_moisture": 0.5817535,
-              "mean_sampled_canopy_opportunity": 0.72112024,
-              "mean_sampled_deadfall_probability": 0.4537775,
-              "mean_sampled_hero_path_bias": 0.009783155,
-              "mean_nearest_spacing_m": 17.893064,
-              "min_nearest_spacing_m": 14.056865,
+              "mean_suitability": 0.4776375,
+              "mean_sampled_slope": 0.14982416,
+              "mean_sampled_moisture": 0.5815284,
+              "mean_sampled_canopy_opportunity": 0.7226017,
+              "mean_sampled_deadfall_probability": 0.45229352,
+              "mean_sampled_hero_path_bias": 0.007940113,
+              "mean_nearest_spacing_m": 18.391777,
+              "min_nearest_spacing_m": 14.093929,
               "rejected_forbidden_path": 0,
               "rejected_slope": 0,
-              "rejected_same_kind_spacing": 183,
-              "rejected_trunk_competition": 21
+              "rejected_same_kind_spacing": 227,
+              "rejected_trunk_competition": 18
             }
           ]
         }
@@ -927,7 +919,7 @@ mod tests {
           "map_digest": {
             "deadfall_anchor_occupancy": {
               "max_intensity": 96,
-              "nonzero_cells": 191,
+              "nonzero_cells": 196,
               "total_intensity": 9456
             },
             "forbidden_path_corridor": {
@@ -937,13 +929,13 @@ mod tests {
             },
             "trunk_occupancy": {
               "max_intensity": 144,
-              "nonzero_cells": 250,
+              "nonzero_cells": 252,
               "total_intensity": 13200
             },
             "understory_occupancy": {
               "max_intensity": 255,
-              "nonzero_cells": 285,
-              "total_intensity": 40074
+              "nonzero_cells": 278,
+              "total_intensity": 39486
             }
           },
           "resolution": 32,
@@ -1027,6 +1019,27 @@ mod tests {
                         let spacing = distance(placement.position(), other.position());
                         prop_assert!(spacing >= min_spacing - 0.001);
                     }
+                }
+            }
+        }
+
+        #[test]
+        fn trunk_clearance_rules_hold_for_competing_kinds(seed in any::<u64>()) {
+            let set = generate_set(root_seed_from_u64(seed));
+            let config = canonical_placement_config();
+            let trunks = set.placements_for_kind(EcologicalPlacementKind::Trunk);
+
+            for placement in set.placements_for_kind(EcologicalPlacementKind::Understory) {
+                for trunk in &trunks {
+                    let spacing = distance(placement.position(), trunk.position());
+                    prop_assert!(spacing >= config.understory_trunk_clearance_m - 0.001);
+                }
+            }
+
+            for placement in set.placements_for_kind(EcologicalPlacementKind::DeadfallAnchor) {
+                for trunk in &trunks {
+                    let spacing = distance(placement.position(), trunk.position());
+                    prop_assert!(spacing >= config.deadfall_trunk_clearance_m - 0.001);
                 }
             }
         }
