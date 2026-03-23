@@ -261,24 +261,25 @@ For combat, require:
 
 ### 7.7 Local Claude Code review path
 
-When using Claude Code as a reviewer in this repo, do not ask it for a generic code review. Give it this document as the policy and tell it to review the current branch against `origin/main`.
+When using Claude Code as a reviewer in this repo, do not ask it for a generic code review. Use the repo wrapper script so the prompt, timeout, and artifact paths stay stable.
 
 Preferred invocation from the repo root:
 
 ```bash
-claude --permission-mode bypassPermissions --dangerously-skip-permissions -p \
-"Use docs/process/CODE_REVIEW_GUIDELINES.md as the review policy for this repository.
-Review the current git branch against origin/main.
-Focus on bugs, behavioral regressions, determinism risks, missing tests, schema or contract gaps, and process violations.
-Return findings first, ordered by severity, with file references where possible.
-If there are no findings, say that explicitly and mention residual risks."
+python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 600
 ```
 
 Operational notes:
 
 - In this repo, direct branch review has been more reliable in non-interactive mode than `claude --from-pr` or very large diff-fed prompts.
-- Give Claude about 10 minutes to complete the review before treating the run as hung.
-- If it hangs, terminate the attempt, record that explicitly on the PR, and do not claim the review happened.
+- The script writes review artifacts to `reports/process/claude-review/<run_id>/`:
+  - `result.json`
+  - `prompt.txt`
+  - `stdout.txt`
+  - `stderr.txt`
+- Give the script about 10 minutes to classify the run before treating the review as hung.
+- If `result.json.status` is `timeout`, `exit_nonzero`, or `completed_empty_output`, record that explicitly on the PR and do not claim the review succeeded.
+- If `result.json.status` is `completed`, use `stdout.txt` as the authoritative review text.
 - If it returns findings, treat them like any other review findings: fix actionable items, rerun verification, push, rerun Claude on the latest branch state, and summarize the response on the PR.
 
 If the PR says a feel or visual improvement happened but cannot show a packet, block it.

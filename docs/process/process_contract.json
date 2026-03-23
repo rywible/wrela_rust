@@ -25,6 +25,7 @@
       "docs/process/CODE_REVIEW_GUIDELINES.md",
       "docs/process/process_contract.json",
       "docs/process/validate_process_contract.py",
+      "scripts/run_claude_review.py",
       ".github/ISSUE_TEMPLATE",
       ".github/PULL_REQUEST_TEMPLATE.md",
       "xtask/Cargo.toml"

@@ -17,7 +17,7 @@ For any implementation task, the default end-to-end flow is:
 5. Run the strongest verification that actually exists for the current repo state.
 6. Push the branch and open or update the GitHub PR with the required PR packet.
 7. If the task is complete, move its task file from `roadmap/pending_tasks/` to `roadmap/completed_tasks/` in that same PR.
-8. Run local Claude Code review against the current branch, address actionable feedback, rerun verification, and push again if needed.
+8. Run `python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 600`, address actionable feedback, rerun verification, and push again if needed.
 9. Do not treat local code plus local green checks as task completion unless a human explicitly asked for local-only work.
 
 Local implementation is progress. A task is normally complete only when the GitHub PR exists and the local Claude review loop has been completed or explicitly waived by a human.
@@ -40,6 +40,7 @@ At the current bootstrap stage, the repo already contains:
 - `docs/process/CODE_REVIEW_GUIDELINES.md`
 - `docs/process/process_contract.json`
 - `docs/process/validate_process_contract.py`
+- `scripts/run_claude_review.py`
 - `.github/ISSUE_TEMPLATE/*.yml`
 - `.github/PULL_REQUEST_TEMPLATE.md`
 
@@ -384,8 +385,9 @@ Autonomous agents MUST run local Claude Code review before merge unless a human 
 Local verification is necessary but insufficient. The task remains in progress until this review loop is completed or explicitly waived by a human.
 
 - Push the branch when the task work is ready for review, then open or update the GitHub PR.
-- Run Claude from the repo root against the current branch versus `origin/main`, using `docs/process/CODE_REVIEW_GUIDELINES.md` as the review policy.
-- Wait up to about 10 minutes for the Claude review to return before treating the run as hung.
+- Run `python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 600` from the repo root so the prompt, timeout, and artifact paths stay deterministic.
+- Treat `reports/process/claude-review/<run_id>/result.json` as the source of truth for whether the review completed, timed out, exited non-zero, or returned empty output.
+- Wait up to about 10 minutes for the script to classify the Claude review before treating the run as hung.
 - Address actionable review findings on the branch, rerun the relevant verification, and push the follow-up commit(s).
 - Treat every push as a new review cycle. After a follow-up push, rerun Claude review on the latest branch state.
 - If a review suggestion is intentionally not taken, record the reason clearly in the PR.
@@ -395,19 +397,24 @@ Local verification is necessary but insufficient. The task remains in progress u
 
 ### 11.4.1 Claude invocation
 
-- Use the repository review policy as input, not a generic review prompt. Pass `docs/process/CODE_REVIEW_GUIDELINES.md` explicitly in the prompt.
+- Use the repository review policy as input, not a generic review prompt. The repo-standard wrapper script builds the prompt and writes stable artifacts.
 - Prefer reviewing the current branch against `origin/main` from the repo root.
 - Preferred command shape:
 
 ```bash
-claude --permission-mode bypassPermissions --dangerously-skip-permissions -p \
-"Use docs/process/CODE_REVIEW_GUIDELINES.md as the review policy for this repository.
-Review the current git branch against origin/main.
-Focus on bugs, behavioral regressions, determinism risks, missing tests, schema or contract gaps, and process violations.
-Return findings first, ordered by severity, with file references where possible.
-If there are no findings, say that explicitly and mention residual risks."
+python3 scripts/run_claude_review.py --base-ref origin/main --timeout-seconds 600
 ```
 
+- The script writes stable artifacts under `reports/process/claude-review/<run_id>/`:
+  - `result.json`
+  - `prompt.txt`
+  - `stdout.txt`
+  - `stderr.txt`
+- Treat `result.json.status` as authoritative:
+  - `completed` means Claude returned usable review text.
+  - `completed_empty_output` means Claude exited 0 but produced no review text.
+  - `exit_nonzero` means the Claude CLI failed.
+  - `timeout` means the 10-minute wall-clock budget expired.
 - Empirical note for this repo: direct branch review works better in non-interactive mode than `--from-pr` or very large diff-fed prompts, which may stall.
 
 ### 11.5 Bootstrap verification exception
