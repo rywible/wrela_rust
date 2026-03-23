@@ -52,12 +52,17 @@ fn startup_scenario_cli_writes_valid_terminal_report() {
     assert_eq!(report.scenario_path, "scenarios/smoke/startup.ron");
     assert_eq!(report.metrics.frames_simulated, 16);
     assert_eq!(report.metrics.spawned_actor_count, 2);
-    assert_eq!(report.assertions.len(), 2);
+    assert_eq!(report.assertions.len(), 3);
     assert!(
         report.artifacts.iter().any(|artifact| artifact
             .path
             .ends_with("reports/harness/run-scenario/startup-smoke/terminal_report.json")),
         "terminal report artifact should use the stable harness path contract"
+    );
+    assert!(
+        report.artifacts.iter().any(|artifact| artifact.role == "tweak_pack_source"
+            && artifact.path == "tweak_packs/release/hero_forest.ron"),
+        "startup scenario reports should record the applied tweak pack artifact"
     );
 }
 

@@ -16,3 +16,6 @@ stub = []
 [dependencies]
 egui.workspace = true
 wr_core.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

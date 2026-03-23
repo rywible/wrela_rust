@@ -1,6 +1,7 @@
 (
     schema_version: "wr_harness/v1",
     scenario_path: "scenarios/smoke/startup.ron",
+    tweak_pack_path: Some("tweak_packs/release/hero_forest.ron"),
     simulation_rate_hz: 60,
     fixed_steps: 16,
     seed: (
@@ -43,6 +44,13 @@
         ),
     ],
     assertions: [
+        (
+            frame: Some(0),
+            metric: "tweaks.dirty_namespace_count",
+            comparator: "eq",
+            expected: 8.0,
+            tolerance: Some(0.0),
+        ),
         (
             frame: Some(8),
             metric: "world.actor_count",

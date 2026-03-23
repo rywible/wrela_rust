@@ -1,12 +1,12 @@
+#![forbid(unsafe_code)]
+
 mod tweaks;
 
 pub use tweaks::{
     TWEAK_PACK_SCHEMA_VERSION, TweakDefinition, TweakError, TweakNamespace, TweakPack,
-    TweakRegistry, TweakValue, TweakValueKind, default_tweak_definitions, load_tweak_pack_ron,
-    parse_tweak_pack_ron, serialize_tweak_pack_ron, write_tweak_pack_ron,
+    TweakRegistry, TweakRegistryEntry, TweakValue, TweakValueKind, default_tweak_definitions,
+    load_tweak_pack_ron, parse_tweak_pack_ron, serialize_tweak_pack_ron, write_tweak_pack_ron,
 };
-
-#![forbid(unsafe_code)]
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CrateBoundary {

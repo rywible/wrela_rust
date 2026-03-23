@@ -186,9 +186,7 @@ impl TweakPack {
 
     pub fn validate(&self) -> Result<(), TweakError> {
         if self.schema_version != TWEAK_PACK_SCHEMA_VERSION {
-            return Err(TweakError::InvalidSchemaVersion {
-                found: self.schema_version.clone(),
-            });
+            return Err(TweakError::InvalidSchemaVersion { found: self.schema_version.clone() });
         }
         Ok(())
     }
@@ -198,6 +196,17 @@ impl TweakPack {
 pub struct TweakRegistry {
     values: BTreeMap<String, TweakValue>,
     dirty_namespaces: BTreeSet<TweakNamespace>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TweakRegistryEntry {
+    pub key: &'static str,
+    pub namespace: TweakNamespace,
+    pub label: &'static str,
+    pub description: &'static str,
+    pub default_value: TweakValue,
+    pub value: TweakValue,
+    pub namespace_dirty: bool,
 }
 
 impl Default for TweakRegistry {
@@ -215,13 +224,33 @@ impl TweakRegistry {
         default_tweak_definitions()
     }
 
+    pub fn definition(&self, key: &str) -> Option<&'static TweakDefinition> {
+        definition_for_key(key)
+    }
+
+    pub fn entries(&self) -> Vec<TweakRegistryEntry> {
+        self.definitions().iter().map(|definition| self.entry_from_definition(definition)).collect()
+    }
+
+    pub fn entries_in_namespace(&self, namespace: TweakNamespace) -> Vec<TweakRegistryEntry> {
+        self.definitions()
+            .iter()
+            .filter(|definition| definition.namespace == namespace)
+            .map(|definition| self.entry_from_definition(definition))
+            .collect()
+    }
+
+    pub fn entry(&self, key: &str) -> Option<TweakRegistryEntry> {
+        self.definition(key).map(|definition| self.entry_from_definition(definition))
+    }
+
     pub fn value(&self, key: &str) -> Option<TweakValue> {
         self.values.get(key).copied()
     }
 
     pub fn set_value(&mut self, key: &str, value: TweakValue) -> Result<bool, TweakError> {
-        let definition =
-            definition_for_key(key).ok_or_else(|| TweakError::UnknownKey { key: key.to_owned() })?;
+        let definition = definition_for_key(key)
+            .ok_or_else(|| TweakError::UnknownKey { key: key.to_owned() })?;
         if definition.default_value.kind() != value.kind() {
             return Err(TweakError::TypeMismatch {
                 key: key.to_owned(),
@@ -249,7 +278,27 @@ impl TweakRegistry {
     }
 
     pub fn snapshot_pack(&self) -> TweakPack {
-        TweakPack::new(self.values.clone())
+        let entries = self
+            .definitions()
+            .iter()
+            .filter_map(|definition| {
+                let value = self.value(definition.key).unwrap_or(definition.default_value);
+                (value != definition.default_value).then(|| (definition.key.to_owned(), value))
+            })
+            .collect();
+
+        TweakPack::new(entries)
+    }
+
+    pub fn load_pack_from_path(&mut self, path: impl AsRef<Path>) -> Result<PathBuf, TweakError> {
+        let path = path.as_ref();
+        let pack = load_tweak_pack_ron(path)?;
+        self.apply_pack(&pack)?;
+        Ok(path.to_path_buf())
+    }
+
+    pub fn save_pack_to_path(&self, path: impl AsRef<Path>) -> Result<PathBuf, TweakError> {
+        write_tweak_pack_ron(path, &self.snapshot_pack())
     }
 
     pub fn dirty_namespaces(&self) -> &BTreeSet<TweakNamespace> {
@@ -262,6 +311,22 @@ impl TweakRegistry {
 
     pub fn is_namespace_dirty(&self, namespace: TweakNamespace) -> bool {
         self.dirty_namespaces.contains(&namespace)
+    }
+
+    pub fn dirty_namespace_count(&self) -> usize {
+        self.dirty_namespaces.len()
+    }
+
+    fn entry_from_definition(&self, definition: &'static TweakDefinition) -> TweakRegistryEntry {
+        TweakRegistryEntry {
+            key: definition.key,
+            namespace: definition.namespace,
+            label: definition.label,
+            description: definition.description,
+            default_value: definition.default_value,
+            value: self.value(definition.key).unwrap_or(definition.default_value),
+            namespace_dirty: self.is_namespace_dirty(definition.namespace),
+        }
     }
 }
 
@@ -288,12 +353,9 @@ impl std::fmt::Display for TweakError {
                 )
             }
             Self::UnknownKey { key } => write!(f, "unknown tweak key `{key}`"),
-            Self::TypeMismatch { key, expected, found } => write!(
-                f,
-                "tweak `{key}` expected {} but found {}",
-                expected.label(),
-                found.label()
-            ),
+            Self::TypeMismatch { key, expected, found } => {
+                write!(f, "tweak `{key}` expected {} but found {}", expected.label(), found.label())
+            }
         }
     }
 }
@@ -301,7 +363,7 @@ impl std::fmt::Display for TweakError {
 impl std::error::Error for TweakError {}
 
 pub fn parse_tweak_pack_ron(source: &str) -> Result<TweakPack, TweakError> {
-    let pack =
+    let pack: TweakPack =
         ron::de::from_str(source).map_err(|error| TweakError::Deserialize(error.to_string()))?;
     pack.validate()?;
     Ok(pack)
@@ -319,7 +381,10 @@ pub fn load_tweak_pack_ron(path: impl AsRef<Path>) -> Result<TweakPack, TweakErr
     parse_tweak_pack_ron(&source)
 }
 
-pub fn write_tweak_pack_ron(path: impl AsRef<Path>, pack: &TweakPack) -> Result<PathBuf, TweakError> {
+pub fn write_tweak_pack_ron(
+    path: impl AsRef<Path>,
+    pack: &TweakPack,
+) -> Result<PathBuf, TweakError> {
     let path = path.as_ref();
     let parent = path.parent().map(ToOwned::to_owned).unwrap_or_else(|| PathBuf::from("."));
     std::fs::create_dir_all(&parent).map_err(|error| TweakError::Io(error.to_string()))?;
@@ -335,7 +400,7 @@ fn definition_for_key(key: &str) -> Option<&'static TweakDefinition> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
+    use std::collections::{BTreeMap, BTreeSet};
 
     use insta::assert_snapshot;
 
@@ -359,16 +424,38 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_pack_omits_default_values() {
+        let registry = TweakRegistry::default();
+
+        assert_eq!(registry.snapshot_pack(), TweakPack::new(BTreeMap::new()));
+    }
+
+    #[test]
+    fn registry_entries_expose_live_values_and_dirty_flags() {
+        let mut registry = TweakRegistry::default();
+        registry
+            .set_value("combat.hitstop_scale", TweakValue::Scalar(1.25))
+            .expect("known scalar tweak should update");
+
+        let combat_entry =
+            registry.entry("combat.hitstop_scale").expect("combat tweak should be discoverable");
+
+        assert_eq!(combat_entry.label, "Hitstop Scale");
+        assert_eq!(combat_entry.value, TweakValue::Scalar(1.25));
+        assert_eq!(combat_entry.default_value, TweakValue::Scalar(1.0));
+        assert!(combat_entry.namespace_dirty);
+    }
+
+    #[test]
     fn registry_covers_all_namespaces_and_documents_every_entry() {
-        let namespaces = default_tweak_definitions()
-            .iter()
-            .map(|definition| definition.namespace)
-            .collect::<BTreeSet<_>>();
+        let registry = TweakRegistry::default();
+        let entries = registry.entries();
+        let namespaces = entries.iter().map(|entry| entry.namespace).collect::<BTreeSet<_>>();
 
         assert_eq!(namespaces, TweakNamespace::ALL.into_iter().collect());
-        assert!(default_tweak_definitions()
+        assert!(entries
             .iter()
-            .all(|definition| !definition.label.trim().is_empty() && !definition.description.trim().is_empty()));
+            .all(|entry| !entry.label.trim().is_empty() && !entry.description.trim().is_empty()));
     }
 
     #[test]
