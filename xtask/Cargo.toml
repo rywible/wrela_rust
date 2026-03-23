@@ -17,6 +17,7 @@ stub = []
 path = "src/lib.rs"
 
 [dependencies]
+wr_agentd.workspace = true
 wr_core.workspace = true
 wr_headless.workspace = true
 wr_telemetry.workspace = true

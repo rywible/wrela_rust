@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod bootstrap_commands;
 mod util;
 mod verify;
 
@@ -18,7 +19,17 @@ pub const fn init_entrypoint() -> CrateEntryPoint {
 }
 
 pub const fn supported_commands() -> &'static [&'static str] {
-    &["help", "scaffold-status", "noop-harness-report", "run-scenario", "verify"]
+    &[
+        "help",
+        "scaffold-status",
+        "noop-harness-report",
+        "run-scenario",
+        "capture",
+        "lookdev",
+        "perf",
+        "daemon",
+        "verify",
+    ]
 }
 
 pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
@@ -62,6 +73,37 @@ pub fn run(mut args: impl Iterator<Item = String>) -> i32 {
                 1
             }
         },
+        Some("capture") => match bootstrap_commands::run_capture(args) {
+            Ok(outcome) => {
+                println!("{}", outcome.terminal_report_path.display());
+                if outcome.succeeded { 0 } else { 1 }
+            }
+            Err(error) => {
+                eprintln!("capture command failed: {error}");
+                1
+            }
+        },
+        Some("lookdev") => match bootstrap_commands::run_lookdev(args) {
+            Ok(outcome) => {
+                println!("{}", outcome.terminal_report_path.display());
+                if outcome.succeeded { 0 } else { 1 }
+            }
+            Err(error) => {
+                eprintln!("lookdev command failed: {error}");
+                1
+            }
+        },
+        Some("perf") => match bootstrap_commands::run_perf(args) {
+            Ok(outcome) => {
+                println!("{}", outcome.terminal_report_path.display());
+                if outcome.succeeded { 0 } else { 1 }
+            }
+            Err(error) => {
+                eprintln!("perf command failed: {error}");
+                1
+            }
+        },
+        Some("daemon") => wr_agentd::run(args),
         Some(command) => {
             eprintln!(
                 "unsupported xtask command `{command}` in scaffold phase; implement it in its owning roadmap task"

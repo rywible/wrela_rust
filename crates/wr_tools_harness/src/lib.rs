@@ -8,7 +8,8 @@ pub use artifact_paths::{
     write_json_artifact_at, write_test_result_bundle, write_test_result_bundle_at,
 };
 pub use contract::{
-    ArtifactDescriptor, CaptureRequest, DuelMetrics, DuelReport, FailureKind,
+    ArtifactDescriptor, CaptureRequest, CommandExecutionReport, DaemonCommandRequest,
+    DaemonJobSnapshot, DaemonJobState, DaemonLaunchRequest, DuelMetrics, DuelReport, FailureKind,
     HARNESS_SCHEMA_VERSION, HarnessError, HarnessStatus, LookdevSweepRequest, LookdevVariant,
     PerformanceMetrics, PerformanceReport, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS,
     ScenarioActorSpawn, ScenarioAssertion, ScenarioAssertionResult, ScenarioExecutionMetrics,

@@ -16,6 +16,9 @@ The v1 contract covers these JSON-schema-backed payloads:
 - `LookdevSweepRequest`
 - `DuelReport`
 - `PerformanceReport`
+- `CommandExecutionReport`
+- `DaemonLaunchRequest`
+- `DaemonJobSnapshot`
 - `TestResultBundle`
 
 ## Artifact layout
@@ -37,6 +40,8 @@ The verification stack now also writes stable per-run helper artifacts under the
 - `trace.jsonl`
 - `nextest-junit.xml`
 - copied Criterion estimate JSON files when benchmarks run
+
+`PR-004` adds a daemon-side job wrapper. Each daemon job also gets a stable local directory under `reports/harness/daemon/<job_id>/` with streamed `stdout.log` and `stderr.log` artifacts, while the underlying command still writes its normal terminal report under `reports/harness/<command>/<run_id>/terminal_report.json`.
 
 ## Failure taxonomy
 
@@ -60,7 +65,7 @@ The v1 failure taxonomy is:
 - seed label and value
 - stable artifact paths
 
-This command is intentionally narrow. Capture, lookdev, replay, and perf surfaces land in later roadmap tasks.
+This command is intentionally narrow. Replay still lands in a later roadmap task.
 
 ## Headless scenario command
 
@@ -86,3 +91,27 @@ The report includes:
 - the selected Criterion benchmark group.
 
 Its terminal bundle still lands at `reports/harness/verify/<run_id>/terminal_report.json`, and the run directory includes machine-readable step records plus the copied JUnit report so agents and CI do not need to scrape ad-hoc stdout.
+
+## Reserved bootstrap command surfaces
+
+`PR-004` reserves the remaining daemon-facing CLI commands so agents can target stable names before their full implementations land:
+
+- `cargo xtask capture --scenario <path> [--run-id <id>]`
+- `cargo xtask lookdev --pack <path> --camera-set <name> --seed <hex> [--run-id <id>]`
+- `cargo xtask perf --scenario <path> [--run-id <id>]`
+- `cargo xtask daemon [--bind <addr>] [--workspace-root <path>]`
+
+Until the owning runtime tasks land, `capture`, `lookdev`, and `perf` emit a `CommandExecutionReport` with a clear bootstrap-unavailable failure instead of silently missing the command surface.
+
+## Local agent daemon
+
+`wr_agentd` and `cargo xtask daemon` now expose a local-only HTTP surface that accepts a `DaemonLaunchRequest`, spawns the matching CLI command as a subprocess, and returns a `DaemonJobSnapshot`.
+
+The daemon contract guarantees that:
+
+- job launch returns a stable job ID plus predicted artifact paths,
+- job status polling returns queued/running/succeeded/failed state transitions,
+- daemon stdout/stderr are streamed into stable local artifacts while the subprocess runs,
+- the underlying CLI command remains the source of truth for the command payload written to `reports/harness/<command>/<run_id>/terminal_report.json`.
+
+This keeps the agent-facing API stable without inventing a second execution path that could drift away from the CLI contract.

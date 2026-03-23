@@ -1,6 +1,6 @@
 # PR-004 - Local agent daemon and command surface
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: Harness
 - Depends on: PR-001, PR-003
