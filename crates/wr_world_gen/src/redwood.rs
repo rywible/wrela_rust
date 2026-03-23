@@ -82,9 +82,19 @@ impl RedwoodForestGraphConfig {
                 "attractors_per_tree must be at least 8",
             ));
         }
+        if self.attractors_per_tree > 1024 {
+            return Err(RedwoodForestGraphError::invalid_config(
+                "attractors_per_tree must stay at or below 1024 for the current growth pass",
+            ));
+        }
         if self.max_iterations < 4 {
             return Err(RedwoodForestGraphError::invalid_config(
                 "max_iterations must be at least 4",
+            ));
+        }
+        if self.max_iterations > 256 {
+            return Err(RedwoodForestGraphError::invalid_config(
+                "max_iterations must stay at or below 256 for the current growth pass",
             ));
         }
         if self.debug_render_width < 8 || self.debug_render_height < 8 {
@@ -269,6 +279,8 @@ pub struct RedwoodNode {
     pub id: usize,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent_index: Option<usize>,
+    /// Distance from the root in graph hops. Trunk nodes form the initial chain, so their segment
+    /// index and hop depth are intentionally the same in the bootstrap implementation.
     pub depth: u16,
     pub position: RedwoodPoint3,
     pub radius_m: f32,
@@ -695,6 +707,8 @@ fn grow_canopy(
                 let distance_sq =
                     (offset.x * offset.x) + (offset.y * offset.y) + (offset.z * offset.z);
                 if distance_sq <= config.kill_radius_m * config.kill_radius_m {
+                    // Any node inside the kill radius is enough to consume the attractor; this is
+                    // intentionally "any-node kill" rather than "nearest-node kill".
                     consumed = true;
                     break;
                 }
@@ -1035,9 +1049,12 @@ fn rasterize_segment(
         };
         let normalized_x = clamp01((lateral + projection.max_span) / (projection.max_span * 2.0));
         let normalized_y = 1.0 - clamp01(z / projection.max_height);
-        let column =
-            (normalized_x * f32::from(projection.width.saturating_sub(1))).round() as usize;
-        let row = (normalized_y * f32::from(projection.height.saturating_sub(1))).round() as usize;
+        let column = ((normalized_x * f32::from(projection.width.saturating_sub(1))).round()
+            as usize)
+            .min(usize::from(projection.width.saturating_sub(1)));
+        let row = ((normalized_y * f32::from(projection.height.saturating_sub(1))).round()
+            as usize)
+            .min(usize::from(projection.height.saturating_sub(1)));
         let index = row * usize::from(projection.width) + column;
         counts[index] = counts[index].saturating_add(1);
     }
