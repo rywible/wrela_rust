@@ -4973,6 +4973,9 @@ dependencies = [
 name = "wr_game"
 version = "0.1.0"
 dependencies = [
+ "bevy_ecs",
+ "image",
+ "tempfile",
  "tracing",
  "wr_actor_player",
  "wr_actor_wraith",

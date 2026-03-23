@@ -1,18 +1,24 @@
 #![forbid(unsafe_code)]
 
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::path::Path;
 use std::sync::{Arc, mpsc};
 
 use image::ImageEncoder;
+use wgpu::util::DeviceExt;
 use winit::window::Window;
 use wr_core::{CrateBoundary, CrateEntryPoint};
 use wr_render_api::{
-    CapturedFrameInfo, ColorRgba8, GraphicsAdapterInfo, OffscreenRenderRequest, RenderColorSpace,
-    RenderSize,
+    CapturedFrameInfo, ColorRgba8, DEBUG_TRIANGLE_PASS_NAME, DEBUG_TRIANGLE_PIPELINE_ID,
+    DEBUG_TRIANGLE_SHADER_ID, DebugTriangle, ExtractedRenderScene, GraphicsAdapterInfo,
+    OffscreenRenderRequest, PipelineAssetDescriptor, PrimitiveTopology, RenderColorSpace,
+    RenderFeatureRegistry, RenderGraph, RenderSize, ShaderModuleAsset, ShaderSource,
+    debug_triangle_graph,
 };
 
 const CLEAR_PASS_SHADER_WGSL: &str = include_str!("clear_pass.wgsl");
+const DEBUG_TRIANGLE_SHADER_WGSL: &str = include_str!("debug_triangle.wgsl");
 const TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -31,7 +37,7 @@ pub fn shader_source() -> &'static str {
 
 pub fn compile_clear_pass_shader() -> Result<GraphicsAdapterInfo, String> {
     let gpu = WgpuContext::new(None)?;
-    let _shader = gpu.create_shader_module();
+    let _shader = gpu.create_clear_shader_module();
     Ok(gpu.adapter)
 }
 
@@ -41,27 +47,89 @@ pub fn render_offscreen_png(
 ) -> Result<OffscreenCaptureOutcome, String> {
     request.validate()?;
 
-    let gpu = WgpuContext::new(None)?;
-    let shader = gpu.create_shader_module();
-    let texture = create_render_texture(&gpu.device, request.size, TEXTURE_FORMAT);
-    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-    let pipeline = create_render_pipeline(&gpu.device, TEXTURE_FORMAT, &shader);
+    let scene = ExtractedRenderScene::new(request.clear_color);
+    render_scene_to_png(request.size, &scene, &debug_triangle_graph(), output_path)
+}
 
-    let bytes = render_to_rgba8(
-        &gpu.device,
-        &gpu.queue,
-        &pipeline,
-        &view,
-        &texture,
-        request.size,
-        request.clear_color,
-    )?;
-    write_png(output_path.as_ref(), request.size, &bytes)?;
+pub fn render_scene_to_png(
+    size: RenderSize,
+    scene: &ExtractedRenderScene,
+    graph: &RenderGraph,
+    output_path: impl AsRef<Path>,
+) -> Result<OffscreenCaptureOutcome, String> {
+    render_scene_to_png_with_factories(
+        size,
+        scene,
+        graph,
+        &[&DebugTrianglePassFactory],
+        output_path,
+    )
+}
+
+pub fn builtin_scene_registry() -> RenderFeatureRegistry {
+    registry_from_factories(&[&DebugTrianglePassFactory])
+}
+
+pub trait RenderPassFactory: Send + Sync {
+    fn pass_name(&self) -> &'static str;
+    fn shader_asset(&self) -> ShaderModuleAsset;
+    fn pipeline_asset(&self) -> PipelineAssetDescriptor;
+    fn create_pipeline(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+    ) -> wgpu::RenderPipeline;
+    fn encode(&self, context: RenderPassEncodeContext<'_>) -> Result<(), String>;
+}
+
+pub struct RenderPassEncodeContext<'a> {
+    pub scene: &'a ExtractedRenderScene,
+    pub device: &'a wgpu::Device,
+    pub encoder: &'a mut wgpu::CommandEncoder,
+    pub target: &'a wgpu::TextureView,
+    pub pipeline: &'a wgpu::RenderPipeline,
+    pub clear_color: ColorRgba8,
+    pub load_existing: bool,
+}
+
+pub fn render_scene_to_png_with_factories(
+    size: RenderSize,
+    scene: &ExtractedRenderScene,
+    graph: &RenderGraph,
+    factories: &[&dyn RenderPassFactory],
+    output_path: impl AsRef<Path>,
+) -> Result<OffscreenCaptureOutcome, String> {
+    size.validate()?;
+
+    let registry = registry_from_factories(factories);
+    graph.validate_with_registry(&registry)?;
+    let ordered_passes = graph.ordered_pass_names()?;
+    let factory_lookup = build_factory_lookup(factories)?;
+
+    let gpu = WgpuContext::new(None)?;
+    let shader_modules = build_shader_modules(&gpu.device, &registry)?;
+    let pipelines = build_pipelines(&gpu.device, &registry, &shader_modules, &factory_lookup)?;
+    let texture = create_render_texture(&gpu.device, size, TEXTURE_FORMAT);
+    let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+    let bytes = render_graph_to_rgba8(GraphExecutionContext {
+        device: &gpu.device,
+        queue: &gpu.queue,
+        graph,
+        scene,
+        ordered_passes: &ordered_passes,
+        factory_lookup: &factory_lookup,
+        pipelines: &pipelines,
+        view: &view,
+        texture: &texture,
+        size,
+    })?;
+    write_png(output_path.as_ref(), size, &bytes)?;
 
     Ok(OffscreenCaptureOutcome {
         adapter: gpu.adapter,
         frame: CapturedFrameInfo {
-            size: request.size,
+            size,
             color_space: RenderColorSpace::Rgba8UnormSrgb,
             non_empty_pixels: count_non_empty_pixels(&bytes),
         },
@@ -134,7 +202,7 @@ impl SurfaceRenderer {
             label: Some("wr_render_wgpu::clear_pass"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(CLEAR_PASS_SHADER_WGSL)),
         });
-        let pipeline = create_render_pipeline(&device, format, &shader);
+        let pipeline = create_clear_pipeline(&device, format, &shader);
 
         Ok(Self {
             surface,
@@ -180,12 +248,7 @@ impl SurfaceRenderer {
                     resolve_target: None,
                     depth_slice: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: clear_color.normalized()[0],
-                            g: clear_color.normalized()[1],
-                            b: clear_color.normalized()[2],
-                            a: clear_color.normalized()[3],
-                        }),
+                        load: wgpu::LoadOp::Clear(color_to_wgpu(clear_color)),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -200,6 +263,110 @@ impl SurfaceRenderer {
 
         self.queue.submit(Some(encoder.finish()));
         frame.present();
+        Ok(())
+    }
+}
+
+struct DebugTrianglePassFactory;
+
+impl RenderPassFactory for DebugTrianglePassFactory {
+    fn pass_name(&self) -> &'static str {
+        DEBUG_TRIANGLE_PASS_NAME
+    }
+
+    fn shader_asset(&self) -> ShaderModuleAsset {
+        ShaderModuleAsset {
+            id: String::from(DEBUG_TRIANGLE_SHADER_ID),
+            label: String::from("wr_render_wgpu::debug_triangle"),
+            source: ShaderSource::Wgsl(String::from(DEBUG_TRIANGLE_SHADER_WGSL)),
+            vertex_entry: String::from("vs_main"),
+            fragment_entry: String::from("fs_main"),
+        }
+    }
+
+    fn pipeline_asset(&self) -> PipelineAssetDescriptor {
+        PipelineAssetDescriptor {
+            id: String::from(DEBUG_TRIANGLE_PIPELINE_ID),
+            shader_id: String::from(DEBUG_TRIANGLE_SHADER_ID),
+            topology: PrimitiveTopology::TriangleList,
+            color_target: RenderColorSpace::Rgba8UnormSrgb,
+        }
+    }
+
+    fn create_pipeline(
+        &self,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        shader: &wgpu::ShaderModule,
+    ) -> wgpu::RenderPipeline {
+        let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("wr_render_wgpu::debug_triangle_layout"),
+            bind_group_layouts: &[],
+            immediate_size: 0,
+        });
+
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("wr_render_wgpu::debug_triangle_pipeline"),
+            layout: Some(&layout),
+            vertex: wgpu::VertexState {
+                module: shader,
+                entry_point: Some("vs_main"),
+                buffers: &[debug_vertex_layout()],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            }),
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        })
+    }
+
+    fn encode(&self, context: RenderPassEncodeContext<'_>) -> Result<(), String> {
+        let vertices = debug_vertex_bytes(context.scene.debug_triangles())?;
+        let buffer = context.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("wr_render_wgpu::debug_triangle_vertices"),
+            contents: &vertices,
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let load_op = if context.load_existing {
+            wgpu::LoadOp::Load
+        } else {
+            wgpu::LoadOp::Clear(color_to_wgpu(context.clear_color))
+        };
+
+        let mut pass = context.encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("wr_render_wgpu::debug_geometry_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: context.target,
+                resolve_target: None,
+                depth_slice: None,
+                ops: wgpu::Operations { load: load_op, store: wgpu::StoreOp::Store },
+            })],
+            depth_stencil_attachment: None,
+            occlusion_query_set: None,
+            timestamp_writes: None,
+            multiview_mask: None,
+        });
+        pass.set_pipeline(context.pipeline);
+        if !vertices.is_empty() {
+            pass.set_vertex_buffer(0, buffer.slice(..));
+            let vertex_count = u32::try_from(vertices.len() / DEBUG_VERTEX_STRIDE)
+                .map_err(|_| String::from("too many debug triangle vertices for one draw call"))?;
+            pass.draw(0..vertex_count, 0..1);
+        }
+
         Ok(())
     }
 }
@@ -225,7 +392,7 @@ impl WgpuContext {
         Ok(Self { device, queue, adapter: adapter_info })
     }
 
-    fn create_shader_module(&self) -> wgpu::ShaderModule {
+    fn create_clear_shader_module(&self) -> wgpu::ShaderModule {
         self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("wr_render_wgpu::clear_pass"),
             source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(CLEAR_PASS_SHADER_WGSL)),
@@ -279,7 +446,7 @@ fn create_render_texture(
     })
 }
 
-fn create_render_pipeline(
+fn create_clear_pipeline(
     device: &wgpu::Device,
     format: wgpu::TextureFormat,
     shader: &wgpu::ShaderModule,
@@ -317,46 +484,139 @@ fn create_render_pipeline(
     })
 }
 
-fn render_to_rgba8(
+fn registry_from_factories(factories: &[&dyn RenderPassFactory]) -> RenderFeatureRegistry {
+    RenderFeatureRegistry {
+        shaders: factories.iter().map(|factory| factory.shader_asset()).collect(),
+        pipelines: factories.iter().map(|factory| factory.pipeline_asset()).collect(),
+    }
+}
+
+fn build_factory_lookup<'a>(
+    factories: &'a [&dyn RenderPassFactory],
+) -> Result<BTreeMap<&'a str, &'a dyn RenderPassFactory>, String> {
+    let mut lookup = BTreeMap::new();
+    for factory in factories {
+        if lookup.insert(factory.pass_name(), *factory).is_some() {
+            return Err(format!(
+                "render pass factory `{}` was registered twice",
+                factory.pass_name()
+            ));
+        }
+    }
+
+    Ok(lookup)
+}
+
+fn build_shader_modules(
     device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    pipeline: &wgpu::RenderPipeline,
-    view: &wgpu::TextureView,
-    texture: &wgpu::Texture,
+    registry: &RenderFeatureRegistry,
+) -> Result<BTreeMap<String, wgpu::ShaderModule>, String> {
+    let mut modules = BTreeMap::new();
+
+    for shader in &registry.shaders {
+        let module = match &shader.source {
+            ShaderSource::Wgsl(source) => {
+                device.create_shader_module(wgpu::ShaderModuleDescriptor {
+                    label: Some(shader.label.as_str()),
+                    source: wgpu::ShaderSource::Wgsl(Cow::Owned(source.clone())),
+                })
+            }
+        };
+        modules.insert(shader.id.clone(), module);
+    }
+
+    Ok(modules)
+}
+
+fn build_pipelines<'a>(
+    device: &wgpu::Device,
+    registry: &RenderFeatureRegistry,
+    shader_modules: &BTreeMap<String, wgpu::ShaderModule>,
+    factory_lookup: &BTreeMap<&'a str, &'a dyn RenderPassFactory>,
+) -> Result<BTreeMap<String, (&'a dyn RenderPassFactory, wgpu::RenderPipeline)>, String> {
+    let mut pipelines = BTreeMap::new();
+
+    for pipeline in &registry.pipelines {
+        let Some(factory) =
+            factory_lookup.values().find(|factory| factory.pipeline_asset().id == pipeline.id)
+        else {
+            return Err(format!(
+                "no render pass factory was registered for pipeline `{}`",
+                pipeline.id
+            ));
+        };
+        let shader = shader_modules
+            .get(&pipeline.shader_id)
+            .ok_or_else(|| format!("shader module `{}` was not compiled", pipeline.shader_id))?;
+        let gpu_pipeline = factory.create_pipeline(device, TEXTURE_FORMAT, shader);
+        pipelines.insert(pipeline.id.clone(), (*factory, gpu_pipeline));
+    }
+
+    Ok(pipelines)
+}
+
+struct GraphExecutionContext<'a> {
+    device: &'a wgpu::Device,
+    queue: &'a wgpu::Queue,
+    graph: &'a RenderGraph,
+    scene: &'a ExtractedRenderScene,
+    ordered_passes: &'a [String],
+    factory_lookup: &'a BTreeMap<&'a str, &'a dyn RenderPassFactory>,
+    pipelines: &'a BTreeMap<String, (&'a dyn RenderPassFactory, wgpu::RenderPipeline)>,
+    view: &'a wgpu::TextureView,
+    texture: &'a wgpu::Texture,
     size: RenderSize,
-    clear_color: ColorRgba8,
-) -> Result<Vec<u8>, String> {
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+}
+
+fn render_graph_to_rgba8<'a>(context: GraphExecutionContext<'a>) -> Result<Vec<u8>, String> {
+    let mut encoder = context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("wr_render_wgpu::offscreen_encoder"),
     });
 
-    {
-        let color = clear_color.normalized();
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("wr_render_wgpu::offscreen_pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view,
-                resolve_target: None,
-                depth_slice: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: color[0],
-                        g: color[1],
-                        b: color[2],
-                        a: color[3],
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-            multiview_mask: None,
-        });
-        pass.set_pipeline(pipeline);
-        pass.draw(0..3, 0..1);
+    for (index, pass_name) in context.ordered_passes.iter().enumerate() {
+        let pass = context.graph.pass(pass_name).ok_or_else(|| {
+            format!("validated render pass `{pass_name}` disappeared during execution")
+        })?;
+        let factory = context
+            .factory_lookup
+            .get(pass.name.as_str())
+            .copied()
+            .ok_or_else(|| format!("no render pass factory registered for `{}`", pass.name))?;
+        let (pipeline_factory, pipeline) = context
+            .pipelines
+            .get(&pass.pipeline_id)
+            .ok_or_else(|| format!("render pipeline `{}` was not built", pass.pipeline_id))?;
+
+        if pipeline_factory.pass_name() != pass.name {
+            return Err(format!(
+                "render pass `{}` was wired to pipeline `{}` owned by `{}`",
+                pass.name,
+                pass.pipeline_id,
+                pipeline_factory.pass_name()
+            ));
+        }
+
+        factory.encode(RenderPassEncodeContext {
+            scene: context.scene,
+            device: context.device,
+            encoder: &mut encoder,
+            target: context.view,
+            pipeline,
+            clear_color: context.scene.clear_color,
+            load_existing: index > 0,
+        })?;
     }
 
+    read_texture_to_rgba8(context.device, context.queue, encoder, context.texture, context.size)
+}
+
+fn read_texture_to_rgba8(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    encoder: wgpu::CommandEncoder,
+    texture: &wgpu::Texture,
+    size: RenderSize,
+) -> Result<Vec<u8>, String> {
     let bytes_per_pixel = 4_u32;
     let unpadded_bytes_per_row = size.width.saturating_mul(bytes_per_pixel);
     let padded_bytes_per_row = align_to(unpadded_bytes_per_row, wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
@@ -368,6 +628,7 @@ fn render_to_rgba8(
         mapped_at_creation: false,
     });
 
+    let mut encoder = encoder;
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
             texture,
@@ -442,10 +703,116 @@ fn clamp_surface_size(size: RenderSize, max_dimension: u32) -> RenderSize {
     RenderSize::new(size.width.min(max_dimension), size.height.min(max_dimension))
 }
 
+fn color_to_wgpu(color: ColorRgba8) -> wgpu::Color {
+    let normalized = color.normalized();
+    wgpu::Color { r: normalized[0], g: normalized[1], b: normalized[2], a: normalized[3] }
+}
+
+const DEBUG_VERTEX_STRIDE: usize = std::mem::size_of::<f32>() * 7;
+
+fn debug_vertex_layout() -> wgpu::VertexBufferLayout<'static> {
+    wgpu::VertexBufferLayout {
+        array_stride: DEBUG_VERTEX_STRIDE as u64,
+        step_mode: wgpu::VertexStepMode::Vertex,
+        attributes: &[
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x3,
+                offset: 0,
+                shader_location: 0,
+            },
+            wgpu::VertexAttribute {
+                format: wgpu::VertexFormat::Float32x4,
+                offset: (std::mem::size_of::<f32>() * 3) as u64,
+                shader_location: 1,
+            },
+        ],
+    }
+}
+
+fn debug_vertex_bytes<'a>(
+    triangles: impl Iterator<Item = &'a DebugTriangle>,
+) -> Result<Vec<u8>, String> {
+    let triangle_list = triangles.collect::<Vec<_>>();
+    let capacity = triangle_list
+        .len()
+        .checked_mul(3)
+        .and_then(|vertices| vertices.checked_mul(DEBUG_VERTEX_STRIDE))
+        .ok_or_else(|| String::from("debug triangle vertex buffer overflow"))?;
+    let mut bytes = Vec::with_capacity(capacity);
+
+    for triangle in triangle_list {
+        for vertex in triangle.vertices {
+            bytes.extend_from_slice(&vertex.position.x.to_le_bytes());
+            bytes.extend_from_slice(&vertex.position.y.to_le_bytes());
+            bytes.extend_from_slice(&vertex.position.z.to_le_bytes());
+            bytes.extend_from_slice(&vertex.color.red.to_le_bytes());
+            bytes.extend_from_slice(&vertex.color.green.to_le_bytes());
+            bytes.extend_from_slice(&vertex.color.blue.to_le_bytes());
+            bytes.extend_from_slice(&vertex.color.alpha.to_le_bytes());
+        }
+    }
+
+    Ok(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
+    use wr_render_api::{DebugVertex, LinearColor, RenderPassNode, ScenePrimitive, Vec3};
+
+    struct DummyFactory;
+
+    impl RenderPassFactory for DummyFactory {
+        fn pass_name(&self) -> &'static str {
+            "dummy"
+        }
+
+        fn shader_asset(&self) -> ShaderModuleAsset {
+            ShaderModuleAsset {
+                id: String::from("dummy_shader"),
+                label: String::from("dummy"),
+                source: ShaderSource::Wgsl(String::from(DEBUG_TRIANGLE_SHADER_WGSL)),
+                vertex_entry: String::from("vs_main"),
+                fragment_entry: String::from("fs_main"),
+            }
+        }
+
+        fn pipeline_asset(&self) -> PipelineAssetDescriptor {
+            PipelineAssetDescriptor {
+                id: String::from("dummy_pipeline"),
+                shader_id: String::from("dummy_shader"),
+                topology: PrimitiveTopology::TriangleList,
+                color_target: RenderColorSpace::Rgba8UnormSrgb,
+            }
+        }
+
+        fn create_pipeline(
+            &self,
+            device: &wgpu::Device,
+            format: wgpu::TextureFormat,
+            shader: &wgpu::ShaderModule,
+        ) -> wgpu::RenderPipeline {
+            DebugTrianglePassFactory.create_pipeline(device, format, shader)
+        }
+
+        fn encode(&self, context: RenderPassEncodeContext<'_>) -> Result<(), String> {
+            DebugTrianglePassFactory.encode(context)
+        }
+    }
+
+    fn assert_render_pass_factory<T: RenderPassFactory>() {}
+
+    fn sample_scene() -> ExtractedRenderScene {
+        let triangle = DebugTriangle::new([
+            DebugVertex::new(Vec3::new(-0.8, -0.8, 0.0), LinearColor::new(1.0, 0.0, 0.0, 1.0)),
+            DebugVertex::new(Vec3::new(0.8, -0.8, 0.0), LinearColor::new(0.0, 1.0, 0.0, 1.0)),
+            DebugVertex::new(Vec3::new(0.0, 0.8, 0.0), LinearColor::new(0.0, 0.0, 1.0, 1.0)),
+        ]);
+        let mut scene = ExtractedRenderScene::new(ColorRgba8::new(12, 18, 24, 255));
+        scene.push_primitive(ScenePrimitive::DebugTriangle(triangle));
+        scene
+    }
 
     #[test]
     fn clear_pass_shader_compiles() {
@@ -453,6 +820,18 @@ mod tests {
 
         assert_eq!(adapter.shading_language, "wgsl");
         assert!(!adapter.name.is_empty());
+    }
+
+    #[test]
+    fn builtin_registry_validates() {
+        builtin_scene_registry()
+            .validate()
+            .expect("builtin render factories should register valid assets");
+    }
+
+    #[test]
+    fn compile_time_factory_contract_accepts_custom_factories() {
+        assert_render_pass_factory::<DummyFactory>();
     }
 
     #[test]
@@ -475,22 +854,49 @@ mod tests {
     }
 
     #[test]
-    fn captured_image_has_expected_dimensions_and_visible_pixels() {
+    fn rendered_scene_png_contains_triangle_pixels() {
         let temp = tempdir().expect("tempdir should exist");
-        let output_path = temp.path().join("image.png");
-        render_offscreen_png(
-            &OffscreenRenderRequest {
-                size: RenderSize::new(80, 48),
-                clear_color: ColorRgba8::new(64, 120, 208, 255),
-            },
+        let output_path = temp.path().join("scene.png");
+        render_scene_to_png(
+            RenderSize::new(96, 96),
+            &sample_scene(),
+            &debug_triangle_graph(),
             &output_path,
         )
-        .expect("offscreen render should succeed");
+        .expect("scene render should succeed");
 
         let image = image::open(&output_path).expect("png should load").into_rgba8();
+        let center = image.get_pixel(48, 48).0;
 
-        assert_eq!(image.width(), 80);
-        assert_eq!(image.height(), 48);
-        assert!(image.pixels().any(|pixel| pixel.0 != [0, 0, 0, 0]));
+        assert_eq!(image.width(), 96);
+        assert_eq!(image.height(), 96);
+        assert_ne!(center, [12, 18, 24, 255]);
+    }
+
+    #[test]
+    fn scene_render_supports_custom_factory_registration() {
+        let temp = tempdir().expect("tempdir should exist");
+        let output_path = temp.path().join("custom.png");
+        let graph = RenderGraph::default()
+            .declare_resource(wr_render_api::RenderGraphResource::new(
+                wr_render_api::DEBUG_COLOR_TARGET_RESOURCE,
+                wr_render_api::RenderResourceKind::ColorTarget,
+                true,
+            ))
+            .add_pass(
+                RenderPassNode::new("dummy", "dummy_pipeline")
+                    .writes(wr_render_api::DEBUG_COLOR_TARGET_RESOURCE),
+            );
+
+        render_scene_to_png_with_factories(
+            RenderSize::new(64, 64),
+            &sample_scene(),
+            &graph,
+            &[&DummyFactory],
+            &output_path,
+        )
+        .expect("custom render factory should be executable");
+
+        assert!(output_path.exists());
     }
 }
