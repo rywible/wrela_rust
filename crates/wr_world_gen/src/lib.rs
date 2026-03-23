@@ -6,7 +6,9 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use tracing::{Level, debug};
 use wr_core::{CrateBoundary, CrateEntryPoint};
-use wr_math::{FractalNoise2, Vec2, clamp01, inverse_lerp, lerp, smootherstep01};
+use wr_math::{
+    FractalNoise2, Vec2, clamp01, inverse_lerp, lerp, smootherstep01, stable_sin_radians,
+};
 use wr_world_seed::RootSeed;
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
@@ -84,19 +86,22 @@ pub struct TerrainFieldConfig {
 
 impl TerrainFieldConfig {
     pub fn validate(self) -> Result<Self, TerrainFieldError> {
-        if self.width_m <= 0.0 {
+        if self.width_m.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(TerrainFieldError::invalid_config("width_m must be positive"));
         }
-        if self.height_m <= 0.0 {
+        if self.height_m.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(TerrainFieldError::invalid_config("height_m must be positive"));
         }
         if self.cache_resolution < 2 {
             return Err(TerrainFieldError::invalid_config("cache_resolution must be at least 2"));
         }
-        if self.height_variation_m <= 0.0 {
+        if !self.height_base_m.is_finite() {
+            return Err(TerrainFieldError::invalid_config("height_base_m must be finite"));
+        }
+        if self.height_variation_m.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(TerrainFieldError::invalid_config("height_variation_m must be positive"));
         }
-        if self.slope_probe_m <= 0.0 {
+        if self.slope_probe_m.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(TerrainFieldError::invalid_config("slope_probe_m must be positive"));
         }
 
@@ -476,7 +481,7 @@ impl TerrainSampler {
         let path_center = 0.54
             + ((normalized.x - 0.5) * 0.14)
             + ((self.path_wobble_noise.sample01(point) - 0.5) * 0.14)
-            + (((normalized.x * std::f32::consts::TAU * 1.1).sin()) * 0.04);
+            + (stable_sin_radians(normalized.x * std::f32::consts::TAU * 1.1) * 0.04);
         let path_distance = (normalized.y - path_center).abs();
         let hero_path_bias = clamp01(1.0 - smootherstep01(path_distance / 0.16));
 
@@ -655,6 +660,22 @@ deadfall_probability
 hero_path_bias
 "#
         );
+    }
+
+    #[test]
+    fn invalid_config_is_rejected() {
+        let invalid = [
+            TerrainFieldConfig { width_m: f32::NAN, ..TerrainFieldConfig::default() },
+            TerrainFieldConfig { height_m: 0.0, ..TerrainFieldConfig::default() },
+            TerrainFieldConfig { cache_resolution: 1, ..TerrainFieldConfig::default() },
+            TerrainFieldConfig { height_base_m: f32::INFINITY, ..TerrainFieldConfig::default() },
+            TerrainFieldConfig { height_variation_m: -1.0, ..TerrainFieldConfig::default() },
+            TerrainFieldConfig { slope_probe_m: f32::NAN, ..TerrainFieldConfig::default() },
+        ];
+
+        for config in invalid {
+            assert!(config.validate().is_err());
+        }
     }
 
     proptest! {

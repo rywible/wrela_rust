@@ -22,45 +22,45 @@ expression: "fields.debug_dump(4).expect(\"debug dump should build\")"
     },
     {
       "field": "drainage",
-      "min": 0.35934025,
-      "max": 0.69841176,
-      "mean": 0.543096,
-      "stddev": 0.06606925
+      "min": 0.3593375,
+      "max": 0.69842553,
+      "mean": 0.54309654,
+      "stddev": 0.06606632
     },
     {
       "field": "moisture",
-      "min": 0.31526875,
+      "min": 0.31531036,
       "max": 0.6768375,
-      "mean": 0.5206129,
-      "stddev": 0.07574283
+      "mean": 0.52061284,
+      "stddev": 0.07574323
     },
     {
       "field": "fog",
-      "min": 0.31006807,
+      "min": 0.3100971,
       "max": 0.6685238,
-      "mean": 0.48774344,
-      "stddev": 0.0707413
+      "mean": 0.4877431,
+      "stddev": 0.070740245
     },
     {
       "field": "canopy_opportunity",
       "min": 0.42567527,
       "max": 0.84652925,
-      "mean": 0.70001835,
-      "stddev": 0.077143416
+      "mean": 0.7000182,
+      "stddev": 0.07713955
     },
     {
       "field": "deadfall_probability",
-      "min": 0.24405096,
+      "min": 0.24405031,
       "max": 0.51646215,
-      "mean": 0.40325522,
-      "stddev": 0.04346286
+      "mean": 0.40325534,
+      "stddev": 0.04346149
     },
     {
       "field": "hero_path_bias",
       "min": 0.0,
       "max": 1.0,
-      "mean": 0.14840822,
-      "stddev": 0.3068721
+      "mean": 0.14840837,
+      "stddev": 0.30687234
     }
   ],
   "fields": {

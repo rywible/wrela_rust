@@ -46,6 +46,26 @@ pub fn smootherstep01(value: f32) -> f32 {
     t * t * t * (t * ((t * 6.0) - 15.0) + 10.0)
 }
 
+pub fn stable_sin_radians(value: f32) -> f32 {
+    let mut wrapped = wrap_radians_to_tau(value);
+    let sign = if wrapped > std::f32::consts::PI {
+        wrapped = std::f32::consts::TAU - wrapped;
+        -1.0
+    } else {
+        1.0
+    };
+    let numerator = 16.0 * wrapped * (std::f32::consts::PI - wrapped);
+    let denominator = (5.0 * std::f32::consts::PI * std::f32::consts::PI)
+        - (4.0 * wrapped * (std::f32::consts::PI - wrapped));
+
+    if denominator.abs() <= f32::EPSILON { 0.0 } else { sign * (numerator / denominator) }
+}
+
+fn wrap_radians_to_tau(value: f32) -> f32 {
+    let tau = std::f32::consts::TAU;
+    value - (tau * (value / tau).floor())
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FractalNoise2 {
     seed: u64,
@@ -129,6 +149,16 @@ mod tests {
         let point = Vec2::new(123.25, 456.75);
 
         assert_eq!(noise.sample01(point), noise.sample01(point));
+    }
+
+    #[test]
+    fn stable_sine_matches_core_quadrature_points() {
+        let epsilon = 0.02;
+
+        assert!(stable_sin_radians(0.0).abs() < epsilon);
+        assert!((stable_sin_radians(std::f32::consts::FRAC_PI_2) - 1.0).abs() < epsilon);
+        assert!(stable_sin_radians(std::f32::consts::PI).abs() < epsilon);
+        assert!((stable_sin_radians(-std::f32::consts::FRAC_PI_2) + 1.0).abs() < epsilon);
     }
 
     proptest! {
