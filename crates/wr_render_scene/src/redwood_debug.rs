@@ -203,6 +203,8 @@ impl ForestProjector {
     fn new(terrain: &TerrainMeshAtlas, forest_mesh: &RedwoodForestMeshSet) -> Self {
         let terrain_bounds = terrain.stats().bounds;
         let forest_bounds = forest_mesh.report().lods[RedwoodMeshLodTier::Hero.as_index()].bounds;
+        // Terrain meshes are stored as [x, height, depth] while redwood meshes report
+        // [x, depth, height]. Keep the axis swap local and documented in this projector.
         Self {
             min_x: terrain_bounds.min[0].min(forest_bounds.min[0]),
             min_y: terrain_bounds.min[2].min(forest_bounds.min[1]),

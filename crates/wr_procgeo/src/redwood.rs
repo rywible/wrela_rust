@@ -279,7 +279,7 @@ impl RedwoodForestMeshReport {
             total_included_nodes,
             total_capped_tips,
             lods: aggregate_lods.finish(),
-            trees: trees.iter().take(24).map(|tree| tree.report).collect(),
+            trees: trees.iter().take(32).map(|tree| tree.report).collect(),
         }
     }
 }
@@ -470,13 +470,8 @@ fn build_tree_mesh(
         )));
     }
 
-    let capped_tip_count = nodes
-        .iter()
-        .enumerate()
-        .filter(|(node_index, _)| {
-            !nodes.iter().any(|candidate| candidate.parent == Some(*node_index))
-        })
-        .count();
+    let child_counts = child_counts(&nodes);
+    let capped_tip_count = child_counts.iter().filter(|count| **count == 0).count();
     let per_node_taper = (tree.max_radius_m().max(0.0001), config);
     let mut lods = RedwoodMeshLodTier::ALL
         .map(|lod| LodBuffers::new(lod, config.radial_segments_per_lod[lod.as_index()]));
@@ -505,19 +500,23 @@ fn build_tree_mesh(
                     &node_rings[node_index],
                     node.position - node.axis * (node.radius_m * config.cap_extension_scale),
                     -node.axis,
+                    node.radius_m,
                     tree.max_radius_m().max(0.0001),
+                    true,
                 );
             }
         }
 
         for (node_index, node) in nodes.iter().enumerate() {
-            if !nodes.iter().any(|candidate| candidate.parent == Some(node_index)) {
+            if child_counts[node_index] == 0 {
                 cap_ring(
                     lod,
                     &node_rings[node_index],
                     node.position + node.axis * (node.radius_m * config.cap_extension_scale),
                     node.axis,
+                    node.radius_m,
                     tree.max_radius_m().max(0.0001),
+                    false,
                 );
             }
         }
@@ -614,6 +613,16 @@ fn select_mesh_nodes(tree: &RedwoodTreeGraph, min_radius_m: f32) -> Vec<NodeReco
     nodes
 }
 
+fn child_counts(nodes: &[NodeRecord]) -> Vec<usize> {
+    let mut counts = vec![0; nodes.len()];
+    for node in nodes {
+        if let Some(parent_index) = node.parent {
+            counts[parent_index] += 1;
+        }
+    }
+    counts
+}
+
 fn build_ring(
     lod: &mut LodBuffers,
     tree_index: usize,
@@ -680,7 +689,9 @@ fn cap_ring(
     ring: &[u32],
     center: Vec3,
     normal: Vec3,
+    radius_m: f32,
     max_tree_radius_m: f32,
+    reverse: bool,
 ) {
     let center_index = lod.push_vertex(
         RedwoodMeshVertex {
@@ -689,13 +700,12 @@ fn cap_ring(
             tangent: normal.perpendicular().into_array(),
             uv: [0.5, 0.0],
             material_params: [
-                1.0 - inverse_lerp(0.0, max_tree_radius_m, normal.length()).clamp(0.0, 1.0),
+                1.0 - inverse_lerp(0.0, max_tree_radius_m, radius_m).clamp(0.0, 1.0),
                 0.0,
             ],
         },
         0.0,
     );
-    let reverse = normal.z < 0.0;
 
     for segment in 0..ring.len() {
         let next = (segment + 1) % ring.len();
