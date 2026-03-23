@@ -395,8 +395,32 @@ impl HeadlessScenarioWorld {
         self.actors.len() as u32
     }
 
+    pub fn entity_count(&self) -> u32 {
+        self.actor_count()
+    }
+
     pub fn applied_input_count(&self) -> u32 {
         self.runtime.world().resource::<AppliedInputCount>().0
+    }
+
+    pub fn active_action_count(&self) -> u32 {
+        self.active_actions().len() as u32
+    }
+
+    pub fn estimated_memory_bytes(&self) -> u64 {
+        let actor_bytes =
+            (self.actors.capacity() * std::mem::size_of::<ScenarioActorState>()) as u64;
+        let active_action_bytes =
+            self.active_actions().iter().map(|action| action.capacity() as u64).sum::<u64>();
+        let event_log = &self.runtime.world().resource::<EventLog>().0;
+        let event_log_bytes = event_log.iter().map(|event| event.capacity() as u64).sum::<u64>();
+        let tweak_entries = self.tweak_registry().entries();
+        let tweak_bytes = tweak_entries
+            .iter()
+            .map(|entry| entry.key.len() as u64 + std::mem::size_of::<TweakValue>() as u64)
+            .sum::<u64>();
+
+        actor_bytes + active_action_bytes + event_log_bytes + tweak_bytes
     }
 
     pub fn tweak_registry(&self) -> &TweakRegistry {

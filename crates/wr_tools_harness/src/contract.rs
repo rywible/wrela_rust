@@ -3,7 +3,7 @@ use std::path::Path;
 
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
-use wr_telemetry::{RunMetadata, SeedInfo};
+use wr_telemetry::{RunMetadata, ScenarioTelemetrySummary, SeedInfo};
 
 pub const HARNESS_SCHEMA_VERSION: &str = "wr_harness/v1";
 pub const SUPPORTED_ASSERTION_COMPARATORS: &[&str] = &["eq", "ne", "gt", "gte", "lt", "lte"];
@@ -268,6 +268,8 @@ pub struct ScenarioExecutionMetrics {
     pub spawned_actor_count: u32,
     pub scripted_input_count: u32,
     pub applied_input_count: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub telemetry_summary: Option<ScenarioTelemetrySummary>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -831,6 +833,67 @@ mod tests {
                 spawned_actor_count: 2,
                 scripted_input_count: 1,
                 applied_input_count: 1,
+                telemetry_summary: Some(ScenarioTelemetrySummary {
+                    tracing_enabled: true,
+                    metrics_enabled: true,
+                    profiler_backend: "disabled".to_owned(),
+                    frame_count: 2,
+                    frame_time_ms: wr_telemetry::TimingSummary {
+                        min_ms: 0.3,
+                        max_ms: 0.5,
+                        average_ms: 0.4,
+                        p95_ms: 0.5,
+                    },
+                    sim_time_ms: wr_telemetry::TimingSummary {
+                        min_ms: 0.2,
+                        max_ms: 0.4,
+                        average_ms: 0.3,
+                        p95_ms: 0.4,
+                    },
+                    render_time_ms: wr_telemetry::TimingSummary::default(),
+                    draw_count: wr_telemetry::CountSummary {
+                        min: 0,
+                        max: 0,
+                        average: 0.0,
+                        last: 0,
+                    },
+                    entity_count: wr_telemetry::CountSummary {
+                        min: 2,
+                        max: 2,
+                        average: 2.0,
+                        last: 2,
+                    },
+                    memory_bytes: wr_telemetry::CountSummary {
+                        min: 256,
+                        max: 320,
+                        average: 288.0,
+                        last: 320,
+                    },
+                    frame_samples: vec![
+                        wr_telemetry::FrameTelemetrySample {
+                            frame_index: 0,
+                            frame_time_ms: 0.3,
+                            sim_time_ms: 0.2,
+                            render_time_ms: 0.0,
+                            draw_count: 0,
+                            entity_count: 2,
+                            memory: wr_telemetry::FrameMemorySnapshot {
+                                estimated_total_bytes: 256,
+                            },
+                        },
+                        wr_telemetry::FrameTelemetrySample {
+                            frame_index: 1,
+                            frame_time_ms: 0.5,
+                            sim_time_ms: 0.4,
+                            render_time_ms: 0.0,
+                            draw_count: 0,
+                            entity_count: 2,
+                            memory: wr_telemetry::FrameMemorySnapshot {
+                                estimated_total_bytes: 320,
+                            },
+                        },
+                    ],
+                }),
             },
             determinism_hash: "0xCBF29CE484222325".to_owned(),
             assertions: vec![ScenarioAssertionResult {

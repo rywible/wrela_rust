@@ -1,11 +1,16 @@
 #![forbid(unsafe_code)]
 
-use wr_core::{CrateBoundary, CrateEntryPoint, SeedConfigPack, TweakPack};
+use std::time::{Duration, Instant};
+
+use tracing::{info, info_span};
+use wr_core::{CrateBoundary, CrateEntryPoint, SeedConfigPack, TelemetryConfig, TweakPack};
 use wr_ecs::{
     EcsRuntime, GamePlugin, HeadlessActorSpawn, HeadlessScenarioWorld, HeadlessScriptedInput,
 };
 use wr_telemetry::{
-    SeedConfigOverrideInfo, SeedConfigPackInfo, SeedDerivationInfo, SeedDerivationMode, SeedInfo,
+    FrameMemorySnapshot, FrameTelemetrySample, ProfilerSession, ScenarioTelemetryRecorder,
+    ScenarioTelemetrySummary, SeedConfigOverrideInfo, SeedConfigPackInfo, SeedDerivationInfo,
+    SeedDerivationMode, SeedInfo,
 };
 use wr_tools_harness::{
     FailureKind, HarnessStatus, ResultEnvelope, SUPPORTED_ASSERTION_COMPARATORS, ScenarioAssertion,
@@ -52,6 +57,7 @@ pub struct HeadlessScenarioSummary {
     pub metrics: ScenarioExecutionMetrics,
     pub assertions: Vec<ScenarioAssertionResult>,
     pub determinism_hash: String,
+    pub telemetry_summary: ScenarioTelemetrySummary,
     pub notes: Option<Vec<String>>,
 }
 
@@ -81,6 +87,42 @@ pub fn run_headless_scenario_with_config_packs(
     seed_config_pack: Option<&SeedConfigPack>,
     tweak_pack: Option<&TweakPack>,
 ) -> HeadlessScenarioSummary {
+    run_headless_scenario_with_telemetry(
+        scenario,
+        seed_config_pack,
+        tweak_pack,
+        &TelemetryConfig::headless_default(),
+    )
+}
+
+pub fn run_headless_scenario_with_telemetry(
+    scenario: &ScenarioRequest,
+    seed_config_pack: Option<&SeedConfigPack>,
+    tweak_pack: Option<&TweakPack>,
+    telemetry_config: &TelemetryConfig,
+) -> HeadlessScenarioSummary {
+    let mut telemetry = ScenarioTelemetryRecorder::new(telemetry_config.clone());
+    let profiler_session = match ProfilerSession::start(telemetry_config) {
+        Ok(session) => session,
+        Err(error) => {
+            return failed_summary(
+                scenario,
+                scenario.seed.clone(),
+                0,
+                0,
+                Vec::new(),
+                telemetry.finish(),
+                format!("failed to start telemetry profiler session: {error}"),
+            );
+        }
+    };
+    info!(
+        profiler_backend = ?profiler_session.active_backend(),
+        enable_metrics = telemetry_config.enable_metrics,
+        enable_tracing = telemetry_config.enable_tracing,
+        "starting headless scenario"
+    );
+
     let seed = match RootSeed::parse_hex(&scenario.seed.value_hex) {
         Ok(seed) => seed,
         Err(error) => {
@@ -90,6 +132,7 @@ pub fn run_headless_scenario_with_config_packs(
                 0,
                 0,
                 Vec::new(),
+                telemetry.finish(),
                 format!("failed to parse root seed: {error}"),
             );
         }
@@ -125,14 +168,39 @@ pub fn run_headless_scenario_with_config_packs(
             0,
             0,
             Vec::new(),
+            telemetry.finish(),
             format!("failed to apply tweak pack: {error}"),
         );
     }
     let mut assertions = Vec::new();
 
     for frame in 0..scenario.fixed_steps {
+        let _frame_span = info_span!("scenario_frame", frame).entered();
+        let frame_started = Instant::now();
+        let sim_started = Instant::now();
         world.apply_inputs(scripted_inputs.iter().filter(|input| input.frame == frame));
         world.step(frame);
+        let sim_time = sim_started.elapsed();
+        let frame_time = frame_started.elapsed();
+
+        telemetry.record_frame(FrameTelemetrySample::from_durations(
+            frame,
+            frame_time,
+            sim_time,
+            Duration::ZERO,
+            0,
+            world.entity_count(),
+            FrameMemorySnapshot { estimated_total_bytes: world.estimated_memory_bytes() },
+        ));
+        info!(
+            frame,
+            frame_time_ms = frame_time.as_secs_f32() * 1000.0,
+            sim_time_ms = sim_time.as_secs_f32() * 1000.0,
+            entity_count = world.entity_count(),
+            active_action_count = world.active_action_count(),
+            memory_bytes = world.estimated_memory_bytes(),
+            "recorded frame telemetry"
+        );
 
         let due_assertions =
             scenario.assertions.iter().filter(|assertion| assertion.frame == Some(frame));
@@ -145,6 +213,7 @@ pub fn run_headless_scenario_with_config_packs(
                     report_seed.clone(),
                     &world,
                     assertions,
+                    telemetry.finish(),
                     ResultEnvelope {
                         status: HarnessStatus::Failed,
                         summary: format!(
@@ -169,6 +238,7 @@ pub fn run_headless_scenario_with_config_packs(
             report_seed,
             &world,
             assertions,
+            telemetry.finish(),
             ResultEnvelope {
                 status: HarnessStatus::Passed,
                 summary: format!(
@@ -185,6 +255,7 @@ pub fn run_headless_scenario_with_config_packs(
             report_seed,
             &world,
             assertions,
+            telemetry.finish(),
             ResultEnvelope {
                 status: HarnessStatus::Failed,
                 summary: format!(
@@ -299,6 +370,7 @@ fn failed_summary(
     frames_simulated: u32,
     applied_input_count: u32,
     assertions: Vec<ScenarioAssertionResult>,
+    telemetry_summary: ScenarioTelemetrySummary,
     details: String,
 ) -> HeadlessScenarioSummary {
     let metrics = ScenarioExecutionMetrics {
@@ -308,6 +380,7 @@ fn failed_summary(
         spawned_actor_count: scenario.spawned_actors.len() as u32,
         scripted_input_count: scenario.scripted_inputs.len() as u32,
         applied_input_count,
+        telemetry_summary: Some(telemetry_summary.clone()),
     };
     let determinism_hash = stable_hash_hex([
         scenario.seed.value_hex.as_bytes(),
@@ -326,6 +399,7 @@ fn failed_summary(
         metrics,
         assertions,
         determinism_hash,
+        telemetry_summary,
         notes: Some(vec![
             "Execution failed before the fixed-step simulation completed.".to_owned(),
         ]),
@@ -337,6 +411,7 @@ fn finalize_summary(
     report_seed: SeedInfo,
     world: &HeadlessScenarioWorld,
     assertions: Vec<ScenarioAssertionResult>,
+    telemetry_summary: ScenarioTelemetrySummary,
     result: ResultEnvelope,
     notes: Option<Vec<String>>,
 ) -> HeadlessScenarioSummary {
@@ -347,6 +422,7 @@ fn finalize_summary(
         spawned_actor_count: world.actor_count(),
         scripted_input_count: scenario.scripted_inputs.len() as u32,
         applied_input_count: world.applied_input_count(),
+        telemetry_summary: Some(telemetry_summary.clone()),
     };
     let determinism_hash = stable_hash_hex(
         world
@@ -369,7 +445,15 @@ fn finalize_summary(
             .map(|record| record.into_bytes()),
     );
 
-    HeadlessScenarioSummary { report_seed, result, metrics, assertions, determinism_hash, notes }
+    HeadlessScenarioSummary {
+        report_seed,
+        result,
+        metrics,
+        assertions,
+        determinism_hash,
+        telemetry_summary,
+        notes,
+    }
 }
 
 fn build_report_seed_info(

@@ -2,9 +2,12 @@
 
 use std::path::{Component, Path, PathBuf};
 
-use wr_core::{CrateBoundary, CrateEntryPoint, TweakPack, load_tweak_pack_ron};
+use wr_core::{CrateBoundary, CrateEntryPoint, TelemetryConfig, TweakPack, load_tweak_pack_ron};
 use wr_game::HeadlessScenarioSummary;
-use wr_telemetry::{PlatformMetadata, RunMetadata, RunTimestamps, SeedInfo, artifact_component};
+use wr_telemetry::{
+    CountSummary, PlatformMetadata, RunMetadata, RunTimestamps, ScenarioTelemetrySummary, SeedInfo,
+    TimingSummary, TraceCapture, artifact_component, telemetry_note,
+};
 use wr_tools_harness::{
     ArtifactDescriptor, ArtifactLayout, FailureKind, HARNESS_SCHEMA_VERSION, HarnessStatus,
     ResultEnvelope, ScenarioExecutionMetrics, ScenarioExecutionReport, TERMINAL_REPORT_FILENAME,
@@ -20,6 +23,8 @@ pub const fn target_runtime() -> CrateEntryPoint {
 }
 
 pub const RUN_SCENARIO_COMMAND_NAME: &str = "run-scenario";
+const METRICS_SUMMARY_FILENAME: &str = "metrics_summary.json";
+const TRACE_LOG_FILENAME: &str = "trace.jsonl";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeadlessRunOutcome {
@@ -102,6 +107,11 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
     let scenario_label = artifact_component(options.scenario_path.to_string_lossy().as_ref());
     let run_id = options.run_id.unwrap_or_else(|| format!("{scenario_label}-{}", now_unix_ms()));
     let layout = ArtifactLayout::new(RUN_SCENARIO_COMMAND_NAME, &run_id);
+    let telemetry_config = TelemetryConfig::headless_from_env()
+        .map_err(|error| format!("failed to resolve telemetry configuration: {error}"))?;
+    let trace_path = options.output_root.join(layout.run_directory()).join(TRACE_LOG_FILENAME);
+    let trace_capture = TraceCapture::install(&trace_path, &telemetry_config)
+        .map_err(|error| format!("failed to initialize trace capture: {error}"))?;
     let started_at = now_unix_ms();
     let cwd =
         std::env::current_dir().map_err(|error| format!("failed to read current dir: {error}"))?;
@@ -135,9 +145,11 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
                             scenario.seed.clone(),
                             scenario.scenario_path.clone(),
                             tweak_pack_path,
-                            wr_game::run_headless_scenario_with_tweak_pack(
+                            wr_game::run_headless_scenario_with_telemetry(
                                 &scenario,
+                                None,
                                 tweak_pack.as_ref(),
+                                &telemetry_config,
                             ),
                             Some(notes),
                         )
@@ -182,6 +194,13 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
         path: layout.terminal_report_path_string(),
         media_type: "application/json".to_owned(),
     }];
+    if trace_capture.is_some() {
+        artifacts.push(ArtifactDescriptor {
+            role: "trace_log".to_owned(),
+            path: layout.run_directory().join(TRACE_LOG_FILENAME).to_string_lossy().into_owned(),
+            media_type: "application/x-ndjson".to_owned(),
+        });
+    }
     if Path::new(&scenario_path).exists() {
         artifacts.push(ArtifactDescriptor {
             role: "scenario_source".to_owned(),
@@ -199,6 +218,19 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
         });
     }
 
+    let metrics_summary_path = write_json_artifact_at(
+        &options.output_root,
+        &layout,
+        METRICS_SUMMARY_FILENAME,
+        &summary.telemetry_summary,
+    )
+    .map_err(|error| format!("failed to write metrics summary: {error}"))?;
+    artifacts.push(ArtifactDescriptor {
+        role: "metrics_summary".to_owned(),
+        path: layout.run_directory().join(METRICS_SUMMARY_FILENAME).to_string_lossy().into_owned(),
+        media_type: "application/json".to_owned(),
+    });
+
     let report = ScenarioExecutionReport {
         schema_version: HARNESS_SCHEMA_VERSION.to_owned(),
         metadata,
@@ -209,12 +241,14 @@ fn execute_run(options: HeadlessRunOptions) -> Result<HeadlessRunOutcome, String
         determinism_hash: summary.determinism_hash,
         assertions: summary.assertions,
         artifacts,
-        notes: merge_notes(summary.notes, notes),
+        notes: merge_notes(summary.notes, append_note(notes, telemetry_note(&telemetry_config))),
     };
 
+    drop(trace_capture);
     let terminal_report_path =
         write_json_artifact_at(&options.output_root, &layout, TERMINAL_REPORT_FILENAME, &report)
             .map_err(|error| format!("failed to write terminal report: {error}"))?;
+    let _ = metrics_summary_path;
 
     Ok(HeadlessRunOutcome {
         terminal_report_path,
@@ -288,9 +322,11 @@ fn failure_summary(summary: &str, details: String) -> HeadlessScenarioSummary {
             spawned_actor_count: 0,
             scripted_input_count: 0,
             applied_input_count: 0,
+            telemetry_summary: Some(disabled_telemetry_summary()),
         },
         assertions: Vec::new(),
         determinism_hash: "0x0000000000000000".to_owned(),
+        telemetry_summary: disabled_telemetry_summary(),
         notes: Some(vec![
             "A terminal report was still emitted so automation can classify the failure."
                 .to_owned(),
@@ -314,6 +350,28 @@ fn merge_notes(
     notes.extend(secondary.unwrap_or_default());
 
     if notes.is_empty() { None } else { Some(notes) }
+}
+
+fn append_note(notes: Option<Vec<String>>, note: String) -> Option<Vec<String>> {
+    let mut notes = notes.unwrap_or_default();
+    notes.push(note);
+    Some(notes)
+}
+
+fn disabled_telemetry_summary() -> ScenarioTelemetrySummary {
+    ScenarioTelemetrySummary {
+        tracing_enabled: false,
+        metrics_enabled: false,
+        profiler_backend: "disabled".to_owned(),
+        frame_count: 0,
+        frame_time_ms: TimingSummary::default(),
+        sim_time_ms: TimingSummary::default(),
+        render_time_ms: TimingSummary::default(),
+        draw_count: CountSummary::default(),
+        entity_count: CountSummary::default(),
+        memory_bytes: CountSummary::default(),
+        frame_samples: Vec::new(),
+    }
 }
 
 fn now_unix_ms() -> u64 {

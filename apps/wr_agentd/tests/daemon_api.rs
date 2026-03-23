@@ -347,5 +347,15 @@ async fn daemon_run_scenario_matches_cli_payload_on_real_xtask_path() {
 fn normalize_scenario_report(mut report: Value) -> Value {
     report.as_object_mut().expect("report should be an object").remove("metadata");
     report.as_object_mut().expect("report should be an object").remove("artifacts");
+    if let Some(telemetry_summary) = report
+        .get_mut("metrics")
+        .and_then(Value::as_object_mut)
+        .and_then(|metrics| metrics.get_mut("telemetry_summary"))
+        .and_then(Value::as_object_mut)
+    {
+        telemetry_summary.remove("frame_samples");
+        telemetry_summary.remove("frame_time_ms");
+        telemetry_summary.remove("sim_time_ms");
+    }
     report
 }

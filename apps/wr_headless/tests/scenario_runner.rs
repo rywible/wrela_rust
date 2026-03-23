@@ -61,6 +61,19 @@ fn startup_scenario_cli_writes_valid_terminal_report() {
     assert_eq!(report.metrics.frames_simulated, 16);
     assert_eq!(report.metrics.spawned_actor_count, 2);
     assert_eq!(report.assertions.len(), 3);
+    assert_eq!(
+        report.metrics.telemetry_summary.as_ref().map(|summary| summary.frame_count),
+        Some(16)
+    );
+    assert!(
+        report.metrics.telemetry_summary.as_ref().is_some_and(|summary| {
+            summary.tracing_enabled
+                && summary.metrics_enabled
+                && summary.frame_samples.len() == 16
+                && summary.memory_bytes.max >= summary.memory_bytes.min
+        }),
+        "scenario telemetry should capture per-frame samples and aggregate memory counters"
+    );
     assert!(
         report.artifacts.iter().any(|artifact| artifact
             .path
@@ -71,6 +84,18 @@ fn startup_scenario_cli_writes_valid_terminal_report() {
         report.artifacts.iter().any(|artifact| artifact.role == "tweak_pack_source"
             && artifact.path == "tweak_packs/release/hero_forest.ron"),
         "startup scenario reports should record the applied tweak pack artifact"
+    );
+    assert!(
+        report.artifacts.iter().any(|artifact| artifact.role == "metrics_summary"
+            && artifact
+                .path
+                .ends_with("reports/harness/run-scenario/startup-smoke/metrics_summary.json")),
+        "scenario runs should publish a stable metrics summary artifact"
+    );
+    assert!(
+        report.artifacts.iter().any(|artifact| artifact.role == "trace_log"
+            && artifact.path.ends_with("reports/harness/run-scenario/startup-smoke/trace.jsonl")),
+        "scenario runs should publish a stable trace log artifact"
     );
 }
 
@@ -101,8 +126,29 @@ fn same_scenario_and_seed_produce_identical_determinism_hashes() {
     let second_report = load_report(&second);
 
     assert_eq!(first_report.determinism_hash, second_report.determinism_hash);
-    assert_eq!(first_report.metrics, second_report.metrics);
     assert_eq!(first_report.assertions, second_report.assertions);
+    assert_eq!(first_report.metrics.frames_requested, second_report.metrics.frames_requested);
+    assert_eq!(first_report.metrics.frames_simulated, second_report.metrics.frames_simulated);
+    assert_eq!(first_report.metrics.simulation_rate_hz, second_report.metrics.simulation_rate_hz);
+    assert_eq!(first_report.metrics.spawned_actor_count, second_report.metrics.spawned_actor_count);
+    assert_eq!(
+        first_report.metrics.scripted_input_count,
+        second_report.metrics.scripted_input_count
+    );
+    assert_eq!(first_report.metrics.applied_input_count, second_report.metrics.applied_input_count);
+    let first_telemetry = first_report
+        .metrics
+        .telemetry_summary
+        .as_ref()
+        .expect("telemetry summary should be present");
+    let second_telemetry = second_report
+        .metrics
+        .telemetry_summary
+        .as_ref()
+        .expect("telemetry summary should be present");
+    assert_eq!(first_telemetry.frame_count, second_telemetry.frame_count);
+    assert_eq!(first_telemetry.entity_count, second_telemetry.entity_count);
+    assert_eq!(first_telemetry.memory_bytes, second_telemetry.memory_bytes);
 }
 
 #[test]
@@ -127,6 +173,10 @@ fn failing_assertion_still_writes_terminal_report() {
     assert_eq!(report.result.status, HarnessStatus::Failed);
     assert_eq!(report.result.failure_kind, Some(FailureKind::ScenarioFailed));
     assert_eq!(report.metrics.frames_simulated, 1);
+    assert_eq!(
+        report.metrics.telemetry_summary.as_ref().map(|summary| summary.frame_count),
+        Some(1)
+    );
     assert!(
         report
             .result

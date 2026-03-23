@@ -15,6 +15,7 @@ stub = []
 
 [dependencies]
 ron.workspace = true
+schemars.workspace = true
 serde.workspace = true
 
 [dev-dependencies]

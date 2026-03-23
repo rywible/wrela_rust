@@ -1,12 +1,21 @@
 #![forbid(unsafe_code)]
 
+mod metrics;
+mod trace_capture;
 mod verification;
 
 pub use verification::{VerificationStepRecord, VerificationStepStatus, artifact_component};
+pub use {
+    metrics::{
+        CountSummary, FrameMemorySnapshot, FrameTelemetrySample, ScenarioTelemetryRecorder,
+        ScenarioTelemetrySummary, TimingSummary,
+    },
+    trace_capture::{ProfilerSession, TraceCapture, TraceCaptureError},
+};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use wr_core::{CrateBoundary, CrateEntryPoint};
+use wr_core::{CrateBoundary, CrateEntryPoint, ProfilerBackend, TelemetryConfig};
 
 pub const fn init_entrypoint() -> CrateEntryPoint {
     CrateEntryPoint::new("wr_telemetry", CrateBoundary::Subsystem, false)
@@ -120,4 +129,16 @@ impl RunMetadata {
             notes: None,
         }
     }
+}
+
+pub fn telemetry_note(config: &TelemetryConfig) -> String {
+    format!(
+        "Telemetry config metrics={} tracing={} profiler={}.",
+        config.enable_metrics,
+        config.enable_tracing,
+        match config.profiler_backend {
+            ProfilerBackend::Disabled => "disabled",
+            ProfilerBackend::Tracy => "tracy",
+        }
+    )
 }

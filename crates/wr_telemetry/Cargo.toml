@@ -12,11 +12,15 @@ workspace = true
 [features]
 default = []
 stub = []
+tracy = ["dep:tracy-client"]
 
 [dependencies]
 wr_core.workspace = true
 schemars.workspace = true
 serde.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tracy-client = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true

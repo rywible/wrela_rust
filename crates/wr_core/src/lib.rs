@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 mod config_packs;
+mod telemetry;
 mod tweaks;
 
 pub use config_packs::{
@@ -8,6 +9,7 @@ pub use config_packs::{
     load_seed_config_pack_ron, parse_seed_config_pack_ron, serialize_seed_config_pack_ron,
     write_seed_config_pack_ron,
 };
+pub use telemetry::{ProfilerBackend, TelemetryConfig, TelemetryConfigError};
 pub use tweaks::{
     TWEAK_PACK_SCHEMA_VERSION, TweakDefinition, TweakError, TweakNamespace, TweakPack,
     TweakRegistry, TweakRegistryEntry, TweakValue, TweakValueKind, default_tweak_definitions,
