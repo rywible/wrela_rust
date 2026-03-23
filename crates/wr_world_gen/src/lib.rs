@@ -172,6 +172,19 @@ impl TerrainScalarFieldSet {
         self.config
     }
 
+    pub fn cache_resolution(&self) -> u16 {
+        self.config.cache_resolution
+    }
+
+    pub fn grid_point(&self, column: u16, row: u16) -> Vec2 {
+        let max_index = self.config.cache_resolution.saturating_sub(1);
+        let clamped_column = column.min(max_index);
+        let clamped_row = row.min(max_index);
+        let u = f32::from(clamped_column) / f32::from(max_index.max(1));
+        let v = f32::from(clamped_row) / f32::from(max_index.max(1));
+        Vec2::new(self.config.width_m * u, self.config.height_m * v)
+    }
+
     pub fn sample(&self, point: Vec2) -> TerrainFieldSample {
         TerrainFieldSample::from_array(self.bilinear_sample(point))
     }

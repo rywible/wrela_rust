@@ -1,0 +1,26 @@
+---
+source: crates/wr_physics/src/terrain_collision.rs
+assertion_line: 207
+expression: canonical_collider().report()
+---
+{
+  "seed_hex": "0x00000000DEADBEEF",
+  "stats": {
+    "chunk_count": 64,
+    "triangle_count": 32768,
+    "min_height": 41.93363,
+    "max_height": 92.98284,
+    "bounds": {
+      "min": [
+        0.0,
+        41.93363,
+        0.0
+      ],
+      "max": [
+        512.0,
+        92.98284,
+        512.0
+      ]
+    }
+  }
+}

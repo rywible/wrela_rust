@@ -1,0 +1,1569 @@
+---
+source: crates/wr_procgeo/src/terrain.rs
+assertion_line: 400
+expression: atlas.report()
+---
+{
+  "seed_hex": "0x00000000DEADBEEF",
+  "atlas": {
+    "terrain_resolution": 129,
+    "chunk_resolution": 16,
+    "chunk_columns": 8,
+    "chunk_rows": 8,
+    "chunk_count": 64,
+    "vertex_count": 18496,
+    "triangle_count": 32768,
+    "min_height": 41.93363,
+    "max_height": 92.98284,
+    "bounds": {
+      "min": [
+        0.0,
+        41.93363,
+        0.0
+      ],
+      "max": [
+        512.0,
+        92.98284,
+        512.0
+      ]
+    }
+  },
+  "chunks": [
+    {
+      "chunk": {
+        "x": 0,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 58.62237,
+      "max_height": 70.89331,
+      "bounds": {
+        "min": [
+          0.0,
+          58.62237,
+          0.0
+        ],
+        "max": [
+          64.0,
+          70.89331,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 63.55802,
+      "max_height": 72.3172,
+      "bounds": {
+        "min": [
+          64.0,
+          63.55802,
+          0.0
+        ],
+        "max": [
+          128.0,
+          72.3172,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 58.034706,
+      "max_height": 77.17566,
+      "bounds": {
+        "min": [
+          128.0,
+          58.034706,
+          0.0
+        ],
+        "max": [
+          192.0,
+          77.17566,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 53.483917,
+      "max_height": 76.408356,
+      "bounds": {
+        "min": [
+          192.0,
+          53.483917,
+          0.0
+        ],
+        "max": [
+          256.0,
+          76.408356,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 51.97435,
+      "max_height": 68.55919,
+      "bounds": {
+        "min": [
+          256.0,
+          51.97435,
+          0.0
+        ],
+        "max": [
+          320.0,
+          68.55919,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 60.373707,
+      "max_height": 71.73435,
+      "bounds": {
+        "min": [
+          320.0,
+          60.373707,
+          0.0
+        ],
+        "max": [
+          384.0,
+          71.73435,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 56.440495,
+      "max_height": 65.94684,
+      "bounds": {
+        "min": [
+          384.0,
+          56.440495,
+          0.0
+        ],
+        "max": [
+          448.0,
+          65.94684,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 0
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 51.016037,
+      "max_height": 63.97041,
+      "bounds": {
+        "min": [
+          448.0,
+          51.016037,
+          0.0
+        ],
+        "max": [
+          512.0,
+          63.97041,
+          64.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 55.946205,
+      "max_height": 69.34886,
+      "bounds": {
+        "min": [
+          0.0,
+          55.946205,
+          64.0
+        ],
+        "max": [
+          64.0,
+          69.34886,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 67.256226,
+      "max_height": 76.93112,
+      "bounds": {
+        "min": [
+          64.0,
+          67.256226,
+          64.0
+        ],
+        "max": [
+          128.0,
+          76.93112,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 69.712875,
+      "max_height": 85.661934,
+      "bounds": {
+        "min": [
+          128.0,
+          69.712875,
+          64.0
+        ],
+        "max": [
+          192.0,
+          85.661934,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 65.6079,
+      "max_height": 82.34293,
+      "bounds": {
+        "min": [
+          192.0,
+          65.6079,
+          64.0
+        ],
+        "max": [
+          256.0,
+          82.34293,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 63.641994,
+      "max_height": 78.641785,
+      "bounds": {
+        "min": [
+          256.0,
+          63.641994,
+          64.0
+        ],
+        "max": [
+          320.0,
+          78.641785,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 61.4795,
+      "max_height": 78.33961,
+      "bounds": {
+        "min": [
+          320.0,
+          61.4795,
+          64.0
+        ],
+        "max": [
+          384.0,
+          78.33961,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 57.93453,
+      "max_height": 72.9767,
+      "bounds": {
+        "min": [
+          384.0,
+          57.93453,
+          64.0
+        ],
+        "max": [
+          448.0,
+          72.9767,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 1
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 51.018005,
+      "max_height": 61.872406,
+      "bounds": {
+        "min": [
+          448.0,
+          51.018005,
+          64.0
+        ],
+        "max": [
+          512.0,
+          61.872406,
+          128.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 55.98385,
+      "max_height": 73.6291,
+      "bounds": {
+        "min": [
+          0.0,
+          55.98385,
+          128.0
+        ],
+        "max": [
+          64.0,
+          73.6291,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 68.97812,
+      "max_height": 78.73917,
+      "bounds": {
+        "min": [
+          64.0,
+          68.97812,
+          128.0
+        ],
+        "max": [
+          128.0,
+          78.73917,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 75.4611,
+      "max_height": 86.12791,
+      "bounds": {
+        "min": [
+          128.0,
+          75.4611,
+          128.0
+        ],
+        "max": [
+          192.0,
+          86.12791,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 71.02214,
+      "max_height": 86.12791,
+      "bounds": {
+        "min": [
+          192.0,
+          71.02214,
+          128.0
+        ],
+        "max": [
+          256.0,
+          86.12791,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 69.39456,
+      "max_height": 81.82935,
+      "bounds": {
+        "min": [
+          256.0,
+          69.39456,
+          128.0
+        ],
+        "max": [
+          320.0,
+          81.82935,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 69.487656,
+      "max_height": 82.107,
+      "bounds": {
+        "min": [
+          320.0,
+          69.487656,
+          128.0
+        ],
+        "max": [
+          384.0,
+          82.107,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 59.654438,
+      "max_height": 80.177795,
+      "bounds": {
+        "min": [
+          384.0,
+          59.654438,
+          128.0
+        ],
+        "max": [
+          448.0,
+          80.177795,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 2
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 41.93363,
+      "max_height": 61.2036,
+      "bounds": {
+        "min": [
+          448.0,
+          41.93363,
+          128.0
+        ],
+        "max": [
+          512.0,
+          61.2036,
+          192.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 57.438614,
+      "max_height": 72.470215,
+      "bounds": {
+        "min": [
+          0.0,
+          57.438614,
+          192.0
+        ],
+        "max": [
+          64.0,
+          72.470215,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 67.75616,
+      "max_height": 80.17493,
+      "bounds": {
+        "min": [
+          64.0,
+          67.75616,
+          192.0
+        ],
+        "max": [
+          128.0,
+          80.17493,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 72.74547,
+      "max_height": 86.12791,
+      "bounds": {
+        "min": [
+          128.0,
+          72.74547,
+          192.0
+        ],
+        "max": [
+          192.0,
+          86.12791,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 76.75527,
+      "max_height": 86.30135,
+      "bounds": {
+        "min": [
+          192.0,
+          76.75527,
+          192.0
+        ],
+        "max": [
+          256.0,
+          86.30135,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 72.25398,
+      "max_height": 80.20178,
+      "bounds": {
+        "min": [
+          256.0,
+          72.25398,
+          192.0
+        ],
+        "max": [
+          320.0,
+          80.20178,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 73.29529,
+      "max_height": 80.38117,
+      "bounds": {
+        "min": [
+          320.0,
+          73.29529,
+          192.0
+        ],
+        "max": [
+          384.0,
+          80.38117,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 60.972446,
+      "max_height": 78.939285,
+      "bounds": {
+        "min": [
+          384.0,
+          60.972446,
+          192.0
+        ],
+        "max": [
+          448.0,
+          78.939285,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 3
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 41.99025,
+      "max_height": 73.797455,
+      "bounds": {
+        "min": [
+          448.0,
+          41.99025,
+          192.0
+        ],
+        "max": [
+          512.0,
+          73.797455,
+          256.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 58.699787,
+      "max_height": 81.826096,
+      "bounds": {
+        "min": [
+          0.0,
+          58.699787,
+          256.0
+        ],
+        "max": [
+          64.0,
+          81.826096,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 68.08866,
+      "max_height": 80.237076,
+      "bounds": {
+        "min": [
+          64.0,
+          68.08866,
+          256.0
+        ],
+        "max": [
+          128.0,
+          80.237076,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 64.033615,
+      "max_height": 82.60986,
+      "bounds": {
+        "min": [
+          128.0,
+          64.033615,
+          256.0
+        ],
+        "max": [
+          192.0,
+          82.60986,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 66.58937,
+      "max_height": 85.08829,
+      "bounds": {
+        "min": [
+          192.0,
+          66.58937,
+          256.0
+        ],
+        "max": [
+          256.0,
+          85.08829,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 75.57497,
+      "max_height": 85.16965,
+      "bounds": {
+        "min": [
+          256.0,
+          75.57497,
+          256.0
+        ],
+        "max": [
+          320.0,
+          85.16965,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 71.86825,
+      "max_height": 83.24063,
+      "bounds": {
+        "min": [
+          320.0,
+          71.86825,
+          256.0
+        ],
+        "max": [
+          384.0,
+          83.24063,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 73.797455,
+      "max_height": 87.84851,
+      "bounds": {
+        "min": [
+          384.0,
+          73.797455,
+          256.0
+        ],
+        "max": [
+          448.0,
+          87.84851,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 4
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 52.71073,
+      "max_height": 85.941315,
+      "bounds": {
+        "min": [
+          448.0,
+          52.71073,
+          256.0
+        ],
+        "max": [
+          512.0,
+          85.941315,
+          320.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 73.35693,
+      "max_height": 83.172,
+      "bounds": {
+        "min": [
+          0.0,
+          73.35693,
+          320.0
+        ],
+        "max": [
+          64.0,
+          83.172,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.12273,
+      "max_height": 84.308914,
+      "bounds": {
+        "min": [
+          64.0,
+          70.12273,
+          320.0
+        ],
+        "max": [
+          128.0,
+          84.308914,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 63.449333,
+      "max_height": 82.8643,
+      "bounds": {
+        "min": [
+          128.0,
+          63.449333,
+          320.0
+        ],
+        "max": [
+          192.0,
+          82.8643,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 66.58937,
+      "max_height": 90.37402,
+      "bounds": {
+        "min": [
+          192.0,
+          66.58937,
+          320.0
+        ],
+        "max": [
+          256.0,
+          90.37402,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 73.46539,
+      "max_height": 90.65496,
+      "bounds": {
+        "min": [
+          256.0,
+          73.46539,
+          320.0
+        ],
+        "max": [
+          320.0,
+          90.65496,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 69.023674,
+      "max_height": 80.76294,
+      "bounds": {
+        "min": [
+          320.0,
+          69.023674,
+          320.0
+        ],
+        "max": [
+          384.0,
+          80.76294,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 74.73186,
+      "max_height": 88.31633,
+      "bounds": {
+        "min": [
+          384.0,
+          74.73186,
+          320.0
+        ],
+        "max": [
+          448.0,
+          88.31633,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 5
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 79.132355,
+      "max_height": 89.499435,
+      "bounds": {
+        "min": [
+          448.0,
+          79.132355,
+          320.0
+        ],
+        "max": [
+          512.0,
+          89.499435,
+          384.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 73.80368,
+      "max_height": 86.66915,
+      "bounds": {
+        "min": [
+          0.0,
+          73.80368,
+          384.0
+        ],
+        "max": [
+          64.0,
+          86.66915,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 77.1252,
+      "max_height": 87.35385,
+      "bounds": {
+        "min": [
+          64.0,
+          77.1252,
+          384.0
+        ],
+        "max": [
+          128.0,
+          87.35385,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.51044,
+      "max_height": 87.35385,
+      "bounds": {
+        "min": [
+          128.0,
+          70.51044,
+          384.0
+        ],
+        "max": [
+          192.0,
+          87.35385,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 78.2388,
+      "max_height": 85.90966,
+      "bounds": {
+        "min": [
+          192.0,
+          78.2388,
+          384.0
+        ],
+        "max": [
+          256.0,
+          85.90966,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 72.60494,
+      "max_height": 85.23825,
+      "bounds": {
+        "min": [
+          256.0,
+          72.60494,
+          384.0
+        ],
+        "max": [
+          320.0,
+          85.23825,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 68.664955,
+      "max_height": 77.13515,
+      "bounds": {
+        "min": [
+          320.0,
+          68.664955,
+          384.0
+        ],
+        "max": [
+          384.0,
+          77.13515,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 68.25116,
+      "max_height": 82.457954,
+      "bounds": {
+        "min": [
+          384.0,
+          68.25116,
+          384.0
+        ],
+        "max": [
+          448.0,
+          82.457954,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 6
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.65524,
+      "max_height": 90.645775,
+      "bounds": {
+        "min": [
+          448.0,
+          70.65524,
+          384.0
+        ],
+        "max": [
+          512.0,
+          90.645775,
+          448.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 0,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 78.252045,
+      "max_height": 92.98284,
+      "bounds": {
+        "min": [
+          0.0,
+          78.252045,
+          448.0
+        ],
+        "max": [
+          64.0,
+          92.98284,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 1,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.97412,
+      "max_height": 87.71159,
+      "bounds": {
+        "min": [
+          64.0,
+          70.97412,
+          448.0
+        ],
+        "max": [
+          128.0,
+          87.71159,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 2,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.95986,
+      "max_height": 82.3965,
+      "bounds": {
+        "min": [
+          128.0,
+          70.95986,
+          448.0
+        ],
+        "max": [
+          192.0,
+          82.3965,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 3,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 72.565445,
+      "max_height": 88.64558,
+      "bounds": {
+        "min": [
+          192.0,
+          72.565445,
+          448.0
+        ],
+        "max": [
+          256.0,
+          88.64558,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 4,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 71.88983,
+      "max_height": 87.852005,
+      "bounds": {
+        "min": [
+          256.0,
+          71.88983,
+          448.0
+        ],
+        "max": [
+          320.0,
+          87.852005,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 5,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 68.60724,
+      "max_height": 76.304276,
+      "bounds": {
+        "min": [
+          320.0,
+          68.60724,
+          448.0
+        ],
+        "max": [
+          384.0,
+          76.304276,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 6,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 66.412994,
+      "max_height": 83.20676,
+      "bounds": {
+        "min": [
+          384.0,
+          66.412994,
+          448.0
+        ],
+        "max": [
+          448.0,
+          83.20676,
+          512.0
+        ]
+      }
+    },
+    {
+      "chunk": {
+        "x": 7,
+        "y": 7
+      },
+      "quads_wide": 16,
+      "quads_tall": 16,
+      "vertex_count": 289,
+      "triangle_count": 512,
+      "min_height": 70.65524,
+      "max_height": 85.12428,
+      "bounds": {
+        "min": [
+          448.0,
+          70.65524,
+          448.0
+        ],
+        "max": [
+          512.0,
+          85.12428,
+          512.0
+        ]
+      }
+    }
+  ]
+}

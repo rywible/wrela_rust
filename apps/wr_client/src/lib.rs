@@ -95,7 +95,15 @@ pub fn parse_command(args: impl Iterator<Item = String>) -> Result<ClientCommand
 
 pub fn run(args: impl Iterator<Item = String>) -> Result<Option<ClientRunSummary>, String> {
     match parse_command(args)? {
-        ClientCommand::Run(options) => wr_platform::run_client(options.runtime).map(Some),
+        ClientCommand::Run(options) => {
+            let terrain_scene = wr_render_scene::canonical_hero_terrain_debug_scene()?;
+            wr_platform::run_client_with_scene(
+                options.runtime,
+                Some(terrain_scene.scene),
+                Some(terrain_scene.graph),
+            )
+            .map(Some)
+        }
         ClientCommand::Help => Ok(None),
     }
 }

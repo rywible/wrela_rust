@@ -109,7 +109,8 @@ pub fn render_scene_to_png_with_factories(
 
     let gpu = WgpuContext::new(None)?;
     let shader_modules = build_shader_modules(&gpu.device, &registry)?;
-    let pipelines = build_pipelines(&gpu.device, &registry, &shader_modules, &factory_lookup)?;
+    let pipelines =
+        build_pipelines(&gpu.device, TEXTURE_FORMAT, &registry, &shader_modules, &factory_lookup)?;
     let texture = create_render_texture(&gpu.device, size, TEXTURE_FORMAT);
     let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
     let bytes = render_graph_to_rgba8(GraphExecutionContext {
@@ -121,7 +122,7 @@ pub fn render_scene_to_png_with_factories(
         factory_lookup: &factory_lookup,
         pipelines: &pipelines,
         view: &view,
-        texture: &texture,
+        texture: Some(&texture),
         size,
     })?;
     write_png(output_path.as_ref(), size, &bytes)?;
@@ -262,6 +263,47 @@ impl SurfaceRenderer {
         }
 
         self.queue.submit(Some(encoder.finish()));
+        frame.present();
+        Ok(())
+    }
+
+    pub fn render_scene(
+        &mut self,
+        scene: &ExtractedRenderScene,
+        graph: &RenderGraph,
+    ) -> Result<(), String> {
+        let registry = builtin_scene_registry();
+        graph.validate_with_registry(&registry)?;
+        let ordered_passes = graph.ordered_pass_names()?;
+        let factories: [&dyn RenderPassFactory; 1] = [&DebugTrianglePassFactory];
+        let factory_lookup = build_factory_lookup(&factories)?;
+        let shader_modules = build_shader_modules(&self.device, &registry)?;
+        let pipelines = build_pipelines(
+            &self.device,
+            self.config.format,
+            &registry,
+            &shader_modules,
+            &factory_lookup,
+        )?;
+        let frame = self
+            .surface
+            .get_current_texture()
+            .map_err(|error| format!("failed to acquire next surface texture: {error}"))?;
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        render_graph_to_target(GraphExecutionContext {
+            device: &self.device,
+            queue: &self.queue,
+            graph,
+            scene,
+            ordered_passes: &ordered_passes,
+            factory_lookup: &factory_lookup,
+            pipelines: &pipelines,
+            view: &view,
+            texture: None,
+            size: RenderSize::new(self.config.width, self.config.height),
+        })?;
+
         frame.present();
         Ok(())
     }
@@ -530,6 +572,7 @@ fn build_shader_modules(
 
 fn build_pipelines<'a>(
     device: &wgpu::Device,
+    format: wgpu::TextureFormat,
     registry: &RenderFeatureRegistry,
     shader_modules: &BTreeMap<String, wgpu::ShaderModule>,
     factory_lookup: &BTreeMap<&'a str, &'a dyn RenderPassFactory>,
@@ -548,7 +591,7 @@ fn build_pipelines<'a>(
         let shader = shader_modules
             .get(&pipeline.shader_id)
             .ok_or_else(|| format!("shader module `{}` was not compiled", pipeline.shader_id))?;
-        let gpu_pipeline = factory.create_pipeline(device, TEXTURE_FORMAT, shader);
+        let gpu_pipeline = factory.create_pipeline(device, format, shader);
         pipelines.insert(pipeline.id.clone(), (*factory, gpu_pipeline));
     }
 
@@ -564,11 +607,11 @@ struct GraphExecutionContext<'a> {
     factory_lookup: &'a BTreeMap<&'a str, &'a dyn RenderPassFactory>,
     pipelines: &'a BTreeMap<String, (&'a dyn RenderPassFactory, wgpu::RenderPipeline)>,
     view: &'a wgpu::TextureView,
-    texture: &'a wgpu::Texture,
+    texture: Option<&'a wgpu::Texture>,
     size: RenderSize,
 }
 
-fn render_graph_to_rgba8<'a>(context: GraphExecutionContext<'a>) -> Result<Vec<u8>, String> {
+fn render_graph_to_target<'a>(context: GraphExecutionContext<'a>) -> Result<(), String> {
     let mut encoder = context.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
         label: Some("wr_render_wgpu::offscreen_encoder"),
     });
@@ -607,13 +650,33 @@ fn render_graph_to_rgba8<'a>(context: GraphExecutionContext<'a>) -> Result<Vec<u
         })?;
     }
 
-    read_texture_to_rgba8(context.device, context.queue, encoder, context.texture, context.size)
+    context.queue.submit(Some(encoder.finish()));
+    Ok(())
+}
+
+fn render_graph_to_rgba8<'a>(context: GraphExecutionContext<'a>) -> Result<Vec<u8>, String> {
+    render_graph_to_target(GraphExecutionContext {
+        device: context.device,
+        queue: context.queue,
+        graph: context.graph,
+        scene: context.scene,
+        ordered_passes: context.ordered_passes,
+        factory_lookup: context.factory_lookup,
+        pipelines: context.pipelines,
+        view: context.view,
+        texture: None,
+        size: context.size,
+    })?;
+
+    let texture = context
+        .texture
+        .ok_or_else(|| String::from("offscreen graph execution requires a texture target"))?;
+    read_texture_to_rgba8(context.device, context.queue, texture, context.size)
 }
 
 fn read_texture_to_rgba8(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
-    encoder: wgpu::CommandEncoder,
     texture: &wgpu::Texture,
     size: RenderSize,
 ) -> Result<Vec<u8>, String> {
@@ -628,7 +691,9 @@ fn read_texture_to_rgba8(
         mapped_at_creation: false,
     });
 
-    let mut encoder = encoder;
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("wr_render_wgpu::readback_encoder"),
+    });
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo {
             texture,

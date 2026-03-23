@@ -12,7 +12,9 @@ use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use wr_core::{CrateBoundary, CrateEntryPoint};
-use wr_render_api::{ColorRgba8, GraphicsAdapterInfo, RenderSize};
+use wr_render_api::{
+    ColorRgba8, ExtractedRenderScene, GraphicsAdapterInfo, RenderGraph, RenderSize,
+};
 use wr_render_wgpu::SurfaceRenderer;
 
 const DEFAULT_RENDER_RATE_HZ: u32 = 60;
@@ -467,12 +469,20 @@ impl ClientRunSummary {
 }
 
 pub fn run_client(config: ClientRuntimeConfig) -> Result<ClientRunSummary, String> {
+    run_client_with_scene(config, None, None)
+}
+
+pub fn run_client_with_scene(
+    config: ClientRuntimeConfig,
+    scene: Option<ExtractedRenderScene>,
+    graph: Option<RenderGraph>,
+) -> Result<ClientRunSummary, String> {
     config.validate()?;
 
     let event_loop =
         EventLoop::new().map_err(|error| format!("failed to create event loop: {error}"))?;
 
-    let mut app = PlatformClientApp::new(config)?;
+    let mut app = PlatformClientApp::new(config, scene, graph)?;
     event_loop.run_app(&mut app).map_err(|error| format!("client event loop failed: {error}"))?;
 
     app.finish()
@@ -480,6 +490,8 @@ pub fn run_client(config: ClientRuntimeConfig) -> Result<ClientRunSummary, Strin
 
 struct PlatformClientApp {
     config: ClientRuntimeConfig,
+    scene: Option<ExtractedRenderScene>,
+    graph: Option<RenderGraph>,
     window: Option<Arc<Window>>,
     window_id: Option<WindowId>,
     renderer: Option<SurfaceRenderer>,
@@ -497,10 +509,16 @@ struct PlatformClientApp {
 }
 
 impl PlatformClientApp {
-    fn new(config: ClientRuntimeConfig) -> Result<Self, String> {
+    fn new(
+        config: ClientRuntimeConfig,
+        scene: Option<ExtractedRenderScene>,
+        graph: Option<RenderGraph>,
+    ) -> Result<Self, String> {
         Ok(Self {
             fixed_step_clock: FixedStepClock::new(config.fixed_step)?,
             config,
+            scene,
+            graph,
             window: None,
             window_id: None,
             renderer: None,
@@ -630,9 +648,16 @@ impl ApplicationHandler for PlatformClientApp {
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(renderer) = &mut self.renderer
-                    && let Err(error) = renderer.render(DEFAULT_CLEAR_COLOR)
-                {
+                let render_result = if let Some(renderer) = &mut self.renderer {
+                    if let (Some(scene), Some(graph)) = (&self.scene, &self.graph) {
+                        renderer.render_scene(scene, graph)
+                    } else {
+                        renderer.render(DEFAULT_CLEAR_COLOR)
+                    }
+                } else {
+                    Ok(())
+                };
+                if let Err(error) = render_result {
                     self.fatal_error = Some(format!("failed to render a client frame: {error}"));
                     event_loop.exit();
                     return;

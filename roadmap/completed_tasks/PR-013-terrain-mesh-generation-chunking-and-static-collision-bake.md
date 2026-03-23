@@ -1,6 +1,6 @@
 # PR-013 - Terrain mesh generation, chunking, and static collision bake
 
-- Status: pending
+- Status: completed
 - Category: Roadmap Task
 - Lane: World
 - Depends on: PR-012, PR-010, PR-011

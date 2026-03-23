@@ -15,3 +15,12 @@ stub = []
 
 [dependencies]
 wr_core.workspace = true
+wr_physics.workspace = true
+wr_procgeo.workspace = true
+wr_render_api.workspace = true
+wr_world_gen.workspace = true
+wr_world_seed.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+wr_render_wgpu.workspace = true
